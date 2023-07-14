@@ -1,9 +1,9 @@
 package parser
 
 import (
-    "testing"
-    "kimchi/ast"
-    "kimchi/tokenizer"
+	"kimchi/ast"
+	"kimchi/tokenizer"
+	"testing"
 )
 
 func TestLetStatement(t *testing.T) {
@@ -504,6 +504,168 @@ func TestIndexExpressionParsing(t *testing.T) {
 
     if !testInfixExpression(t, indexExp.Arguments[0], 1, "+", 1) {
         return
+    }
+}
+
+func TestMapLiteralStringKeys(t *testing.T) {
+    input := `map("one": 1, "two": 2, "three": 3)`
+
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+    }
+
+    mapLiteral, ok := stmt.Expression.(*ast.MapLiteral)
+    if !ok {
+        t.Fatalf("stmt.Expression is not ast.MapLiteral. got=%T", stmt.Expression)
+    }
+
+    if len(mapLiteral.Pairs) != 3 {
+        t.Fatalf("mapLiteral.Pairs has wrong length. got=%d", len(mapLiteral.Pairs))
+    }
+
+    expected := map[string]int64{
+        "one":   1,
+        "two":   2,
+        "three": 3,
+    }
+
+    for key, value := range mapLiteral.Pairs {
+        literal, ok := key.(*ast.StringLiteral)
+        if !ok {
+            t.Errorf("key is not ast.StringLiteral. got=%T", key)
+            continue
+        }
+
+        expectedValue := expected[literal.String()]
+        testIntegerLiteral(t, value, expectedValue)
+    }
+}
+
+func TestMapLiteralIntegerKeys(t *testing.T) {
+    input := `map(1: "one", 2: "two", 3: "three")`
+
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+    }
+
+    mapLiteral, ok := stmt.Expression.(*ast.MapLiteral)
+    if !ok {
+        t.Fatalf("stmt.Expression is not ast.MapLiteral. got=%T", stmt.Expression)
+    }
+
+    if len(mapLiteral.Pairs) != 3 {
+        t.Fatalf("mapLiteral.Pairs has wrong length. got=%d", len(mapLiteral.Pairs))
+    }
+
+    expected := map[int64]string{
+        1: "one",
+        2: "two",
+        3: "three",
+    }
+
+    for key, value := range mapLiteral.Pairs {
+        literal, ok := key.(*ast.IntegerLiteral)
+        if !ok {
+            t.Errorf("key is not ast.IntegerLiteral. got=%T", key)
+            continue
+        }
+
+        expectedValue := expected[literal.Value]
+        testStringLiteral(t, value, expectedValue)
+    }
+}
+
+func TestMapLiteralBooleanKeys(t *testing.T) {
+    input := `map(true: "one", false: "two")`
+
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+    }
+
+    mapLiteral, ok := stmt.Expression.(*ast.MapLiteral)
+    if !ok {
+        t.Fatalf("stmt.Expression is not ast.MapLiteral. got=%T", stmt.Expression)
+    }
+
+    if len(mapLiteral.Pairs) != 2 {
+        t.Fatalf("mapLiteral.Pairs has wrong length. got=%d", len(mapLiteral.Pairs))
+    }
+
+    expected := map[bool]string{
+        true:  "one",
+        false: "two",
+    }
+
+    for key, value := range mapLiteral.Pairs {
+        literal, ok := key.(*ast.BooleanLiteral)
+        if !ok {
+            t.Errorf("key is not ast.Boolean. got=%T", key)
+            continue
+        }
+
+        expectedValue := expected[literal.Value]
+        testStringLiteral(t, value, expectedValue)
+    }
+}
+
+func TestEmptyMapLiteral(t *testing.T) {
+    input := `map()`
+
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+    }
+
+    mapLiteral, ok := stmt.Expression.(*ast.MapLiteral)
+    if !ok {
+        t.Fatalf("stmt.Expression is not ast.MapLiteral. got=%T", stmt.Expression)
+    }
+
+    if len(mapLiteral.Pairs) != 0 {
+        t.Fatalf("mapLiteral.Pairs has wrong length. got=%d", len(mapLiteral.Pairs))
     }
 }
 

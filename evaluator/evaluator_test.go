@@ -320,6 +320,73 @@ func TestListIndexExpressions(t *testing.T) {
     }
 }
 
+func TestMapLiterals(t *testing.T) {
+    input := `
+    let two: str = "two"
+    map(
+        "one": 10 - 9,
+        two: 1 + 1,
+        "thr" + "ee": 6 / 2,
+        4: 4,
+        true: 5,
+        false: 6
+    )
+    `
+
+    evaluated := testEval(input)
+    result, ok := evaluated.(*object.Map)
+    if !ok {
+        t.Fatalf("Eval didn't return Map. got=%T (%+v)", evaluated, evaluated)
+    }
+
+    expected := map[object.MapKey]int64{
+        (&object.Str{Value: "one"}).MapKey(): 1,
+        (&object.Str{Value: "two"}).MapKey(): 2,
+        (&object.Str{Value: "three"}).MapKey(): 3,
+        (&object.I64{Value: 4}).MapKey(): 4,
+        TRUE.MapKey(): 5,
+        FALSE.MapKey(): 6,
+    }
+
+    if len(result.Pairs) != len(expected) {
+        t.Fatalf("Map has wrong num of pairs. got=%d", len(result.Pairs))
+    }
+
+    for expectedKey, expectedValue := range expected {
+        pair, ok := result.Pairs[expectedKey]
+        if !ok {
+            t.Errorf("no pair for given key in Pairs")
+        }
+
+        testIntegerObject(t, pair.Value, expectedValue)
+    }
+}
+
+func TestMapIndexExpressions(t *testing.T) {
+    tests := []struct {
+        input string
+        expected interface{}
+    }{
+        { `map( "one": 1, "two": 2)("one")`, 1, },
+        { `map( "one": 1, "two": 2)("two")`, 2, }, 
+        { `let key: str = "one" map( "one": 1, "two": 2)(key)`, 1, },
+        { `map( "one": 1, "two": 2)(3)`, nil, },
+        { `map( "one": 1, "two": 2)(true)`, nil, },
+        { `map( "one": 1, "two": 2)(false)`, nil, },
+    }
+
+    for _, tt := range tests {
+        evaluated := testEval(tt.input)
+
+        switch expected := tt.expected.(type) {
+        case int:
+            testIntegerObject(t, evaluated, int64(expected))
+        case nil:
+            testNoneObject(t, evaluated)
+        }
+    }
+}
+
 // =======
 // HELPERS
 // =======

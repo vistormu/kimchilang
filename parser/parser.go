@@ -80,6 +80,7 @@ func New(tokenizer *tokenizer.Tokenizer) *Parser {
     parser.prefixParseFns[token.IF] = parser.parseIfExpression
     parser.prefixParseFns[token.FN] = parser.parseFunctionLiteral
     parser.prefixParseFns[token.LIST] = parser.parseListLiteral
+    parser.prefixParseFns[token.MAP] = parser.parseMapLiteral
 
     parser.infixParseFns = make(map[int]infixParseFn)
     parser.infixParseFns[token.PLUS] = parser.parseInfixExpression
@@ -460,11 +461,28 @@ func (self *Parser) parseListLiteral() ast.Expression {
     list.Elements = self.parseExpressionList()
     return list
 }
-// func (self *Parser) parseIndexExpression(leftExpression ast.Expression) ast.Expression {
-//     expression := &ast.CallExpression{Function: leftExpression}
-//     self.nextToken()
 
-//     expression.Arguments = self.parseExpressionList()
+// ===========
+// COLLECTIONS
+// ===========
+func (self *Parser) parseMapLiteral() ast.Expression {
+    mapLiteral := &ast.MapLiteral{Pairs: make(map[ast.Expression]ast.Expression)}
+    self.nextToken()
 
-//     return expression
-// }
+    for !self.peekTokenIs(token.RPAREN) {
+        self.nextToken()
+        key := self.parseExpression(LOWEST)
+
+        if !self.expectPeekTokenToBe(token.COLON) { return nil }
+        self.nextToken()
+
+        value := self.parseExpression(LOWEST)
+        mapLiteral.Pairs[key] = value
+
+        if !self.peekTokenIs(token.RPAREN) && !self.expectPeekTokenToBe(token.COMMA) { return nil }
+    }
+
+    if !self.expectPeekTokenToBe(token.RPAREN) { return nil }
+
+    return mapLiteral
+}

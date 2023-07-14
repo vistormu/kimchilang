@@ -295,3 +295,24 @@ func (self *IndexExpression) String() string {
 
     return out.String()
 }
+
+// ===========
+// COLLECTIONS
+// ===========
+type MapLiteral struct {
+    Pairs map[Expression]Expression
+}
+func (self *MapLiteral) expression() {}
+func (self *MapLiteral) String() string {
+    var out bytes.Buffer
+
+    out.WriteString("map(")
+    for key, value := range self.Pairs {
+        out.WriteString(key.String())
+        out.WriteString(": ")
+        out.WriteString(value.String())
+    }
+    out.WriteString(")")
+
+    return out.String()
+}

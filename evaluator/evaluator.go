@@ -84,6 +84,10 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
         args := evalExpressions(node.Arguments, env)
         if len(args) == 1 && isError(args[0]) { return args[0] }
         return applyFunction(function, args)
+
+    // Collections
+    case *ast.MapLiteral:
+        return evalMapLiteral(node, env)
     }
 
     return nil
@@ -317,8 +321,8 @@ func evalIndexExpression(left, index object.Object) object.Object {
     switch {
     case left.Type() == object.LIST_OBJ && index.Type() == object.I64_OBJ:
         return evalListIndexExpression(left, index)
-    // case left.Type() == object.HASH_OBJ:
-    //     return evalHashIndexExpression(left, index)
+    case left.Type() == object.MAP_OBJ:
+        return evalMapIndexExpression(left, index)
     default:
         return newError("index operator not supported: %d", left.Type())
     }
@@ -347,6 +351,8 @@ func applyFunction(fn object.Object, args []object.Object) object.Object {
         return fn.Function(args...)
     case *object.List:
         return evalIndexExpression(fn, args[0])
+    case *object.Map:
+        return evalIndexExpression(fn, args[0])
     default:
         return newError("not a function: %d", fn.Type())
     }
@@ -363,6 +369,38 @@ func unwrapReturnValue(obj object.Object) object.Object {
         return returnValue.Value
     }
     return obj
+}
+
+// ===========
+// COLLECTIONS
+// ===========
+func evalMapLiteral(node *ast.MapLiteral, env *object.Environment) object.Object {
+    pairs := make(map[object.MapKey]object.MapPair)
+
+    for keyNode, valueNode := range node.Pairs {
+        key := Eval(keyNode, env)
+        if isError(key) { return key }
+
+        mapKey, ok := key.(object.Hashable)
+        if !ok { return newError("unusable as map key: %d", key.Type()) }
+
+        value := Eval(valueNode, env)
+        if isError(value) { return value }
+
+        hashed := mapKey.MapKey()
+        pairs[hashed] = object.MapPair{Key: key, Value: value}
+    }
+    return &object.Map{Pairs: pairs}
+}
+func evalMapIndexExpression(mapObj, index object.Object) object.Object {
+    mapObject := mapObj.(*object.Map)
+    key, ok := index.(object.Hashable)
+    if !ok { return newError("unusable as map key: %d", index.Type()) }
+
+    pair, ok := mapObject.Pairs[key.MapKey()]
+    if !ok { return NONE }
+
+    return pair.Value
 }
 
 // =======
