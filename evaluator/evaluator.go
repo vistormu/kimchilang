@@ -47,6 +47,12 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
     case *ast.BooleanLiteral:
         return nativeBoolToObject(node.Value)
 
+    // Arrays
+    case *ast.ListLiteral:
+        elements := evalExpressions(node.Elements, env)
+        if len(elements) == 1 && isError(elements[0]) { return elements[0] }
+        return &object.List{Elements: elements}
+
     // Expressions
     case *ast.PrefixExpression:
         right := Eval(node.Right, env)
@@ -74,6 +80,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
     case *ast.CallExpression:
         function := Eval(node.Function, env)
         if isError(function) { return function }
+        
         args := evalExpressions(node.Arguments, env)
         if len(args) == 1 && isError(args[0]) { return args[0] }
         return applyFunction(function, args)
@@ -174,11 +181,14 @@ func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Obje
     }
 }
 func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
-    val, ok := env.Get(node.Name)
-    if !ok {
-        return newError("identifier not found: " + node.Name)
+    if val, ok := env.Get(node.Name); ok {
+        return val
     }
-    return val
+    if builtin, ok := builtins[node.Name]; ok {
+        return builtin
+    }
+
+    return newError("identifier not found: " + node.Name)
 }
 func evalExpressions(exps []ast.Expression, env *object.Environment) []object.Object {
     var result []object.Object
@@ -300,6 +310,30 @@ func evalBooleanInfixExpression(operator string, left, right object.Object) obje
     }
 }
 
+// ======
+// ARRAYS
+// ======
+func evalIndexExpression(left, index object.Object) object.Object {
+    switch {
+    case left.Type() == object.LIST_OBJ && index.Type() == object.I64_OBJ:
+        return evalListIndexExpression(left, index)
+    // case left.Type() == object.HASH_OBJ:
+    //     return evalHashIndexExpression(left, index)
+    default:
+        return newError("index operator not supported: %d", left.Type())
+    }
+}
+func evalListIndexExpression(array, index object.Object) object.Object {
+    arrayObject := array.(*object.List)
+    idx := index.(*object.I64).Value
+    max := int64(len(arrayObject.Elements) - 1)
+
+    if idx < 0 || idx > max {
+        return NONE
+    }
+    return arrayObject.Elements[idx]
+}
+
 // =========
 // FUNCTIONS
 // =========
@@ -311,6 +345,8 @@ func applyFunction(fn object.Object, args []object.Object) object.Object {
         return unwrapReturnValue(evaluated)
     case *object.BuiltIn:
         return fn.Function(args...)
+    case *object.List:
+        return evalIndexExpression(fn, args[0])
     default:
         return newError("not a function: %d", fn.Type())
     }

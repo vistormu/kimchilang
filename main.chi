@@ -1,1 +1,5 @@
 print("Hello, World!")
+
+let x: i64 = 50
+
+print(x+10)

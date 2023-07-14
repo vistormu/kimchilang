@@ -95,7 +95,6 @@ func New(tokenizer *tokenizer.Tokenizer) *Parser {
     parser.infixParseFns[token.AND] = parser.parseInfixExpression
     parser.infixParseFns[token.OR] = parser.parseInfixExpression
     parser.infixParseFns[token.LPAREN] = parser.parseCallExpression
-    parser.infixParseFns[token.DOT] = parser.parseCallExpression
 
     return parser
 }

@@ -237,7 +237,7 @@ func TestClosures(t *testing.T) {
     input := `
     let new_adder: none = fn(x: i64): i64 {
         fn(y: i64): i64 { x + y }
-    };
+    }
 
     let add_two: none = new_adder(2)
     add_two(2)
@@ -246,18 +246,79 @@ func TestClosures(t *testing.T) {
     testIntegerObject(t, testEval(input), 4)
 }
 
-// func TestBuiltins(t *testing.T) {
-//     tests := []struct {
-//         input string
-//         expected interface{}
-//     }{
-//         // {`len("")`, 0},
-//         // {`len("four")`, 4},
-//         // {`len("hello world")`, 11},
-//         // {`len(1)`, "argument to `len` not supported, got INTEGER"},
-//         // {`len("one", "two")`, "wrong number of arguments. got=2, want=1"},
-//     }
-// }
+func TestBuiltins(t *testing.T) {
+    tests := []struct {
+        input string
+        expected interface{}
+    }{
+        {`len("")`, 0},
+        {`len("four")`, 4},
+        {`len("hello world")`, 11},
+    }
+
+    for _, tt := range tests {
+        evaluated := testEval(tt.input)
+
+        switch expected := tt.expected.(type) {
+        case int:
+            testIntegerObject(t, evaluated, int64(expected))
+        case string:
+            errObj, ok := evaluated.(*object.Error)
+            if !ok {
+                t.Errorf("object is not Error. got=%T (%+v)", evaluated, evaluated)
+                continue
+            }
+            if errObj.Message != expected {
+                t.Errorf("wrong error message. expected=%q, got=%q", expected, errObj.Message)
+            }
+        }
+    }
+}
+
+func TestListLiterals(t *testing.T) {
+    input := "list(1, 2 * 2, 3 + 3)"
+
+    evaluated := testEval(input)
+    result, ok := evaluated.(*object.List)
+    if !ok {
+        t.Fatalf("object is not List. got=%T (%+v)", evaluated, evaluated)
+    }
+    if len(result.Elements) != 3 {
+        t.Fatalf("list has wrong num of elements. got=%d", len(result.Elements))
+    }
+    testIntegerObject(t, result.Elements[0], 1)
+    testIntegerObject(t, result.Elements[1], 4)
+    testIntegerObject(t, result.Elements[2], 6)
+}
+
+func TestListIndexExpressions(t *testing.T) {
+    tests := []struct {
+        input string
+        expected interface{}
+    }{
+        {"list(1, 2, 3)(0)", 1},
+        {"list(1, 2, 3)(1)", 2},
+        {"list(1, 2, 3)(2)", 3},
+        {"let i: i64 = 0 list(1)(i)", 1},
+        {"list(1, 2, 3)(1 + 1)", 3},
+        {"let my_list: list = list(1, 2, 3) my_list(2)", 3},
+        {"let my_list: list = list(1, 2, 3) my_list(0) + my_list(1) + my_list(2)", 6},
+        {"let my_list: list = list(1, 2, 3) let i: i64 = my_list(0) my_list(i)", 2},
+        {"list(1, 2, 3)(3)", nil},
+        {"list(1, 2, 3)(-1)", nil},
+    }
+
+    for _, tt := range tests {
+        evaluated := testEval(tt.input)
+
+        switch expected := tt.expected.(type) {
+        case int:
+            testIntegerObject(t, evaluated, int64(expected))
+        case nil:
+            testNoneObject(t, evaluated)
+        }
+    }
+}
 
 // =======
 // HELPERS
