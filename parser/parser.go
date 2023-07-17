@@ -81,6 +81,7 @@ func New(tokenizer *tokenizer.Tokenizer) *Parser {
     parser.prefixParseFns[token.FN] = parser.parseFunctionLiteral
     parser.prefixParseFns[token.LIST] = parser.parseListLiteral
     parser.prefixParseFns[token.MAP] = parser.parseMapLiteral
+    parser.prefixParseFns[token.WHILE] = parser.parseWhileExpression
 
     parser.infixParseFns = make(map[int]infixParseFn)
     parser.infixParseFns[token.PLUS] = parser.parseInfixExpression
@@ -129,9 +130,6 @@ func (self *Parser) statementIsTerminated() bool {
     if self.peekTokenIs(token.KEYWORD) || self.peekTokenIs(token.EOF) {
         return true
     }
-    if self.peekTokenIs(token.IDENTIFIER) && !self.currentTokenIs(token.OPERATOR) {
-        return true
-    }
     return false
 }
 
@@ -149,7 +147,7 @@ func (self *Parser) expectPeekTokenToBe(tokenType int ) bool {
         self.nextToken()
         return true
     }
-    self.addPeekError(self.peekToken)
+    self.addPeekError(tokenType)
     return false
 }
 func (self *Parser) peekPrecedence() int {
@@ -162,8 +160,8 @@ func (self *Parser) peekPrecedence() int {
 // ======
 // ERRORS
 // ======
-func (self *Parser) addPeekError(token token.Token) {
-    message := fmt.Sprintf("expected next token to be %s, got %s instead", token.Literal, self.peekToken.Literal)
+func (self *Parser) addPeekError(tokenType int) {
+    message := fmt.Sprintf("expected next token to be %d, got %s instead", tokenType, self.peekToken.Literal)
     self.Errors = append(self.Errors, message)
 }
 func (self *Parser) addNoPrefixParseFnError(token token.Token) {
@@ -184,6 +182,10 @@ func (self *Parser) parseStatement() ast.Statement {
         return self.parseLetStatement()
     case token.RETURN:
         return self.parseReturnStatement()
+    case token.MUT:
+        return self.parseMutStatement()
+    case token.EXE:
+        return self.parseExeStatement()
     default:
         return self.parseExpressionStatement()
     }
@@ -224,7 +226,7 @@ func (self *Parser) parseLetStatement() *ast.LetStatement {
     if !self.expectPeekTokenToBe(token.COLON) { return nil }
 
     if !self.expectPeekTokenToBe(token.TYPE) { return nil }
-    statement.Identifier.Type = self.currentToken // TODO: parse complex types
+    statement.Identifier.Type = self.parseTypeLiteral()
 
     if !self.expectPeekTokenToBe(token.ASSIGN) { return nil }
     self.nextToken()
@@ -237,7 +239,7 @@ func (self *Parser) parseLetBeStatement(statement *ast.LetStatement) *ast.LetSta
     self.nextToken()
 
     if !self.expectPeekTokenToBe(token.LITERAL) { return nil }
-    statement.Identifier.Type = token.NewFromType(self.currentToken.Subtype)
+    statement.Identifier.Type = self.parseTypeLiteral()
     statement.Expression = self.parseExpression(LOWEST)
 
     return statement
@@ -252,6 +254,30 @@ func (self *Parser) parseReturnStatement() *ast.ReturnStatement {
 func (self *Parser) parseExpressionStatement() *ast.ExpressionStatement {
     statement := &ast.ExpressionStatement{}
     statement.Expression = self.parseExpression(LOWEST)
+
+    return statement
+}
+func (self *Parser) parseMutStatement() *ast.MutStatement {
+    statement := &ast.MutStatement{}
+
+    if !self.expectPeekTokenToBe(token.IDENTIFIER) { return nil }
+    statement.Identifier = self.parseIdentifier().(*ast.Identifier)
+
+    if !self.expectPeekTokenToBe(token.TO) { return nil }
+    self.nextToken()
+
+    statement.Expression = self.parseExpression(LOWEST)
+
+    return statement
+}
+func (self *Parser) parseExeStatement() *ast.ExeStatement {
+    statement := &ast.ExeStatement{}
+
+    if !self.expectPeekTokenToBe(token.IDENTIFIER) { return nil }
+    statement.Function = self.parseIdentifier().(*ast.Identifier)
+    
+    if !self.expectPeekTokenToBe(token.LPAREN) { return nil }
+    statement.Arguments = self.parseExpressionList()
 
     return statement
 }
@@ -388,7 +414,7 @@ func (self *Parser) parseFunctionParameters() []*ast.Identifier {
     if !self.expectPeekTokenToBe(token.COLON) { return nil }
 
     if !self.expectPeekTokenToBe(token.TYPE) { return nil }
-    identifier.Type = self.currentToken
+    identifier.Type = self.parseTypeLiteral()
     identifiers = append(identifiers, identifier)
 
     for self.peekTokenIs(token.COMMA) {
@@ -399,7 +425,7 @@ func (self *Parser) parseFunctionParameters() []*ast.Identifier {
         if !self.expectPeekTokenToBe(token.COLON) { return nil }
 
         if !self.expectPeekTokenToBe(token.TYPE) { return nil }
-        identifier.Type = self.currentToken
+        identifier.Type = self.parseTypeLiteral()
         identifiers = append(identifiers, identifier)
     }
 
@@ -418,6 +444,31 @@ func (self *Parser) parseCallExpression(function ast.Expression) ast.Expression 
 // ========
 func (self *Parser) parseIdentifier() ast.Expression {
     return &ast.Identifier{Name: self.currentToken.Literal}
+}
+func (self *Parser) parseTypeLiteral() *ast.TypeLiteral {
+    if self.currentTokenIs(token.LITERAL) {
+        return &ast.TypeLiteral{Type: token.NewFromType(self.currentToken.Subtype)}
+    }
+    typeLiteral := &ast.TypeLiteral{Type: self.currentToken}
+
+    switch self.currentToken.Subtype {
+    case token.LIST:
+        if !self.expectPeekTokenToBe(token.LPAREN) { return nil }
+        if !self.expectPeekTokenToBe(token.TYPE) { return nil }
+        typeLiteral.Subtypes = append(typeLiteral.Subtypes, self.currentToken)
+        if !self.expectPeekTokenToBe(token.RPAREN) { return nil }
+
+    case token.MAP:
+        if !self.expectPeekTokenToBe(token.LPAREN) { return nil }
+        if !self.expectPeekTokenToBe(token.TYPE) { return nil }
+        typeLiteral.Subtypes = append(typeLiteral.Subtypes, self.currentToken)
+        if !self.expectPeekTokenToBe(token.COMMA) { return nil }
+        if !self.expectPeekTokenToBe(token.TYPE) { return nil }
+        typeLiteral.Subtypes = append(typeLiteral.Subtypes, self.currentToken)
+        if !self.expectPeekTokenToBe(token.RPAREN) { return nil }
+    }
+
+    return typeLiteral
 }
 func (self *Parser) parseIntegerLiteral() ast.Expression {
     literal := &ast.IntegerLiteral{}
@@ -485,4 +536,21 @@ func (self *Parser) parseMapLiteral() ast.Expression {
     if !self.expectPeekTokenToBe(token.RPAREN) { return nil }
 
     return mapLiteral
+}
+
+
+// =====
+// LOOPS
+// =====
+func (self *Parser) parseWhileExpression() ast.Expression {
+    expression := &ast.WhileExpression{}
+    self.nextToken()
+
+    expression.Condition = self.parseExpression(LOWEST)
+
+    if !self.expectPeekTokenToBe(token.LBRACE) { return nil }
+
+    expression.Body = self.parseBlockStatement()
+    
+    return expression
 }

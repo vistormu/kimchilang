@@ -1,15 +1,9 @@
 package evaluator
 
 import (
-    "fmt"
+    "kimchi/builtins"
     "kimchi/object"
     "kimchi/ast"
-)
-
-var (
-    TRUE = &object.Bool{Value: true}
-    FALSE = &object.Bool{Value: false}
-    NONE = &object.None{}
 )
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
@@ -22,6 +16,19 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
         val := Eval(node.Expression, env)
         if isError(val) { return val }
         return env.Set(node.Identifier.Name, val)
+
+    case *ast.MutStatement:
+        val := Eval(node.Expression, env)
+        if isError(val) { return val }
+        return env.Set(node.Identifier.Name, val)
+
+    case *ast.ExeStatement:
+        function := Eval(node.Function, env)
+        if isError(function) { return function }
+        
+        args := evalExpressions(node.Arguments, env)
+        if len(args) == 1 && isError(args[0]) { return args[0] }
+        return applyFunction(function, args)
 
     case *ast.ReturnStatement:
         val := Eval(node.Expression, env)
@@ -88,7 +95,12 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
     // Collections
     case *ast.MapLiteral:
         return evalMapLiteral(node, env)
+
+    // Loops
+    case *ast.WhileExpression:
+        return evalWhileExpression(node, env)
     }
+
 
     return nil
 }
@@ -96,9 +108,6 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 // ======
 // ERRORS
 // ======
-func newError(format string, a ...interface{}) *object.Error {
-    return &object.Error{Message: fmt.Sprintf(format, a...)}
-}
 func isError(obj object.Object) bool {
     if obj != nil {
         return obj.Type() == object.ERROR_OBJ
@@ -152,7 +161,7 @@ func evalPrefixExpression(operator string, right object.Object) object.Object {
     case "-":
         return evalNegationOperatorExpression(right)
     default:
-        return newError("unknown operator: %s%d", operator, right.Type())
+        return object.NewError("unknown operator: %s%d", operator, right.Type())
     }
 }
 func evalInfixExpression(operator string, left, right object.Object) object.Object {
@@ -169,9 +178,9 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
         return evalBooleanInfixExpression(operator, left, right)
     }
     if left.Type() != right.Type() {
-        return newError("type mismatch: %d %s %d", left.Type(), operator, right.Type())
+        return object.NewError("type mismatch: %d %s %d", left.Type(), operator, right.Type())
     }
-    return newError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
+    return object.NewError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
 }
 func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Object {
     condition := Eval(ie.Condition, env)
@@ -181,18 +190,18 @@ func evalIfExpression(ie *ast.IfExpression, env *object.Environment) object.Obje
     } else if ie.Alternative != nil {
         return Eval(ie.Alternative, env)
     } else {
-        return NONE
+        return object.NONE
     }
 }
 func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object {
     if val, ok := env.Get(node.Name); ok {
         return val
     }
-    if builtin, ok := builtins[node.Name]; ok {
+    if builtin, ok := builtins.Builtins[node.Name]; ok {
         return builtin
     }
 
-    return newError("identifier not found: " + node.Name)
+    return object.NewError("identifier not found: " + node.Name)
 }
 func evalExpressions(exps []ast.Expression, env *object.Environment) []object.Object {
     var result []object.Object
@@ -211,7 +220,7 @@ func evalExpressions(exps []ast.Expression, env *object.Environment) []object.Ob
 // OPERATIONS
 // ==========
 func evalNotOperatorExpression(right object.Object) object.Object {
-    if right == FALSE || right == NONE { return TRUE } else { return FALSE } 
+    if right == object.FALSE || right == object.NONE { return object.TRUE } else { return object.FALSE } 
 }
 func evalNegationOperatorExpression(right object.Object) object.Object {
     switch right.Type() {
@@ -220,7 +229,7 @@ func evalNegationOperatorExpression(right object.Object) object.Object {
     case object.F64_OBJ:
         return &object.F64{Value: -right.(*object.F64).Value}
     default:
-        return newError("unknown operator: -%d", right.Type())
+        return object.NewError("unknown operator: -%d", right.Type())
     }
 }
 func evalIntegerInfixExpression(operator string, left, right object.Object) object.Object {
@@ -249,7 +258,7 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
     case "is_not":
         return nativeBoolToObject(leftVal != rightVal)
     default:
-        return newError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
+        return object.NewError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
     }
 }
 func evalFloatInfixExpression(operator string, left, right object.Object) object.Object {
@@ -278,7 +287,7 @@ func evalFloatInfixExpression(operator string, left, right object.Object) object
     case "is_not":
         return nativeBoolToObject(leftVal != rightVal)
     default:
-        return newError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
+        return object.NewError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
     }
 }
 func evalStringInfixExpression(operator string, left, right object.Object) object.Object {
@@ -293,7 +302,7 @@ func evalStringInfixExpression(operator string, left, right object.Object) objec
     case "is_not":
         return nativeBoolToObject(leftVal != rightVal)
     default:
-        return newError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
+        return object.NewError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
     }
 }
 func evalBooleanInfixExpression(operator string, left, right object.Object) object.Object {
@@ -310,7 +319,7 @@ func evalBooleanInfixExpression(operator string, left, right object.Object) obje
     case "or":
         return nativeBoolToObject(leftVal || rightVal)
     default:
-        return newError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
+        return object.NewError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
     }
 }
 
@@ -324,7 +333,7 @@ func evalIndexExpression(left, index object.Object) object.Object {
     case left.Type() == object.MAP_OBJ:
         return evalMapIndexExpression(left, index)
     default:
-        return newError("index operator not supported: %d", left.Type())
+        return object.NewError("index operator not supported: %d", left.Type())
     }
 }
 func evalListIndexExpression(array, index object.Object) object.Object {
@@ -333,7 +342,7 @@ func evalListIndexExpression(array, index object.Object) object.Object {
     max := int64(len(arrayObject.Elements) - 1)
 
     if idx < 0 || idx > max {
-        return NONE
+        return object.NONE
     }
     return arrayObject.Elements[idx]
 }
@@ -354,7 +363,7 @@ func applyFunction(fn object.Object, args []object.Object) object.Object {
     case *object.Map:
         return evalIndexExpression(fn, args[0])
     default:
-        return newError("not a function: %d", fn.Type())
+        return object.NewError("not a function: %d", fn.Type())
     }
 }
 func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Environment {
@@ -382,7 +391,7 @@ func evalMapLiteral(node *ast.MapLiteral, env *object.Environment) object.Object
         if isError(key) { return key }
 
         mapKey, ok := key.(object.Hashable)
-        if !ok { return newError("unusable as map key: %d", key.Type()) }
+        if !ok { return object.NewError("unusable as map key: %d", key.Type()) }
 
         value := Eval(valueNode, env)
         if isError(value) { return value }
@@ -395,20 +404,38 @@ func evalMapLiteral(node *ast.MapLiteral, env *object.Environment) object.Object
 func evalMapIndexExpression(mapObj, index object.Object) object.Object {
     mapObject := mapObj.(*object.Map)
     key, ok := index.(object.Hashable)
-    if !ok { return newError("unusable as map key: %d", index.Type()) }
+    if !ok { return object.NewError("unusable as map key: %d", index.Type()) }
 
     pair, ok := mapObject.Pairs[key.MapKey()]
-    if !ok { return NONE }
+    if !ok { return object.NONE }
 
     return pair.Value
+}
+
+// =====
+// LOOPS
+// =====
+func evalWhileExpression(we *ast.WhileExpression, env *object.Environment) object.Object {
+    condition := Eval(we.Condition, env)
+    if isError(condition) { return condition }
+
+    var result object.Object
+    for isTruthy(condition) {
+        result = Eval(we.Body, env)
+        if isError(result) { return result }
+
+        condition = Eval(we.Condition, env)
+        if isError(condition) { return condition }
+    }
+    return result 
 }
 
 // =======
 // HELPERS
 // =======
 func nativeBoolToObject(b bool) *object.Bool {
-    if b { return TRUE } else { return FALSE }
+    if b { return object.TRUE } else { return object.FALSE }
 }
 func isTruthy(obj object.Object) bool {
-    if obj == FALSE || obj == NONE { return false } else { return true }
+    if obj == object.FALSE || obj == object.NONE { return false } else { return true }
 }

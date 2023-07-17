@@ -195,6 +195,33 @@ func TestLetStatements(t *testing.T) {
     }
 }
 
+func TestMutStatements(t *testing.T) {
+    tests := []struct {
+        input string
+        expected int64
+    }{
+        {"let a be 5 mut a to 10 a", 10},
+        {"let a be 5 mut a to 10 mut a to 20 a", 20},
+    }
+
+    for _, tt := range tests {
+        testIntegerObject(t, testEval(tt.input), tt.expected)
+    }
+}
+
+func TestExeStatements(t *testing.T) {
+    tests := []struct {
+        input string
+        expected string
+    }{
+        {"let print_number: none = fn(x: i64): none { print(x) } print_number(5)", "5"},
+    }
+
+    for _, tt := range tests {
+        testNoneObject(t, testEval(tt.input))
+    }
+}
+
 func TestFunctionObject(t *testing.T) {
     input := "fn(x: i64): i64 { x + 2 }"
 
@@ -344,8 +371,8 @@ func TestMapLiterals(t *testing.T) {
         (&object.Str{Value: "two"}).MapKey(): 2,
         (&object.Str{Value: "three"}).MapKey(): 3,
         (&object.I64{Value: 4}).MapKey(): 4,
-        TRUE.MapKey(): 5,
-        FALSE.MapKey(): 6,
+        object.TRUE.MapKey(): 5,
+        object.FALSE.MapKey(): 6,
     }
 
     if len(result.Pairs) != len(expected) {
@@ -386,6 +413,20 @@ func TestMapIndexExpressions(t *testing.T) {
         }
     }
 }
+
+func TestWhileExpression(t *testing.T) {
+    input := `
+    let counter be 0
+    while counter < 10 {
+        mut counter to counter + 1
+    }
+    counter
+    `
+
+    evaluated := testEval(input)
+    testIntegerObject(t, evaluated, 10)
+}
+
 
 // =======
 // HELPERS
@@ -448,7 +489,7 @@ func testStringObject(t *testing.T, obj object.Object, expected string) bool {
     return true
 }
 func testNoneObject(t *testing.T, obj object.Object) bool {
-    if obj != NONE {
+    if obj != object.NONE {
         t.Errorf("object is not None. got=%T (%+v)", obj, obj)
         return false
     }

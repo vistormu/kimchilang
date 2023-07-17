@@ -49,8 +49,8 @@ func TestLetStatement(t *testing.T) {
             t.Fatalf("statement.Identifier.Name not %s. got=%s", tt.expectedIdentifierLiteral, statement.Identifier.Name)
         }
 
-        if statement.Identifier.Type.Literal != tt.expectedIdentifierType {
-            t.Fatalf("statement.Identifier.Type not %s. got=%s", tt.expectedIdentifierType, statement.Identifier.Type.Literal)
+        if statement.Identifier.Type.Type.Literal != tt.expectedIdentifierType {
+            t.Fatalf("statement.Identifier.Type not %s. got=%s", tt.expectedIdentifierType, statement.Identifier.Type.Type.Literal)
         }
 
         if !testExpressionValue(t, statement.Expression, tt.expectedExpressionValue) {
@@ -669,6 +669,153 @@ func TestEmptyMapLiteral(t *testing.T) {
     }
 }
 
+func TestTypeLiteral(t *testing.T) {
+    tests := []struct {
+        input string
+        expectedTypeLiteral  string
+        expectedSubtypesLiteral []string
+    }{
+        {"let x: i64 = 5", "i64", nil},
+        {"let y: f64 = 5.0", "f64", nil},
+        {"let z: bool = true", "bool", nil},
+        {"let a: str = \"hello\"", "str", nil},
+        {"let b: list(i64) = list(1, 2, 3)", "list", []string{"i64"}},
+        {"let c: map(i64, str) = map(1: \"one\", 2: \"two\")", "map", []string{"i64", "str"}},
+    }
+
+    for _, tt := range tests {
+        tokenizer := tokenizer.New(tt.input)
+        parser := New(tokenizer)
+        program := parser.ParseProgram()
+        checkParserErrors(t, parser)
+
+        if len(program.Statements) != 1 {
+            t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+        }
+
+        stmt, ok := program.Statements[0].(*ast.LetStatement)
+        if !ok {
+            t.Fatalf("program.Statements[0] is not ast.LetStatement. got=%T", program.Statements[0])
+        }
+
+        if stmt.Identifier.Type.Type.Literal != tt.expectedTypeLiteral {
+            t.Fatalf("tyoe literal not '%s'. got=%s", tt.expectedTypeLiteral, stmt.Identifier.Type.Type.Literal)
+        }
+
+        if len(stmt.Identifier.Type.Subtypes) != len(tt.expectedSubtypesLiteral) {
+            t.Fatalf("len(stmt.Subtypes) not %d. got=%d", len(tt.expectedSubtypesLiteral), len(stmt.Identifier.Type.Subtypes))
+        }
+
+        for i, subtype := range tt.expectedSubtypesLiteral {
+            if stmt.Identifier.Type.Subtypes[i].Literal != subtype {
+                t.Fatalf("stmt.Subtypes[%d].Literal not '%s'. got=%s", i, subtype, stmt.Identifier.Type.Subtypes[i].Literal)
+            }
+        }
+    }
+}
+
+func TestWhileExpression(t *testing.T) {
+    input := `
+    while x < 10 {
+        print(x)
+    }
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+    }
+
+    whileExpression, ok := stmt.Expression.(*ast.WhileExpression)
+    if !ok {
+        t.Fatalf("stmt.Expression is not ast.WhileExpression. got=%T", stmt.Expression)
+    }
+
+    if whileExpression.Condition.String() != "(x < 10)" {
+        t.Fatalf("whileExpression.Condition.String() is not '(x < 10)'. got=%s", whileExpression.Condition.String())
+    }
+
+    if len(whileExpression.Body.Statements) != 1 {
+        t.Fatalf("whileExpression.Block.Statements does not contain %d statements. got=%d\n", 1, len(whileExpression.Body.Statements))
+    }
+
+    blockStmt, ok := whileExpression.Body.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("whileExpression.Block.Statements[0] is not ast.ExpressionStatement. got=%T", whileExpression.Body.Statements[0])
+    }
+
+    if blockStmt.Expression.String() != "print(x)" {
+        t.Fatalf("blockStmt.Expression.String() is not 'print(x)'. got=%s", blockStmt.Expression.String())
+    }
+}
+
+func TestMutStatement(t *testing.T) {
+    input := `
+    mut x to 5
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.MutStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.MutStatement. got=%T", program.Statements[0])
+    }
+
+    if stmt.Identifier.String() != "x" {
+        t.Fatalf("stmt.Identifier.String() is not 'x'. got=%s", stmt.Identifier.String())
+    }
+
+    if stmt.Expression.String() != "5" {
+        t.Fatalf("stmt.Value.String() is not '5'. got=%s", stmt.Expression.String())
+    }
+
+    if stmt.String() != "mut x to 5" {
+        t.Fatalf("stmt.String() is not 'mut x to 5'. got=%s", stmt.String())
+    }
+}
+
+func TestExeStatement(t *testing.T) {
+    input := `exe print("hello")`
+
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExeStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExeStatement. got=%T", program.Statements[0])
+    }
+
+    if stmt.Function.String() != "print" {
+        t.Fatalf("stmt.Expression.String() is not 'print'. got=%s", stmt.Function.String())
+    }
+
+    if stmt.Arguments[0].String() != "hello" {
+        t.Fatalf("stmt.Arguments[0].String() is not '\"hello\"'. got=%s", stmt.Arguments[0].String())
+    }
+
+}
+
 // =======
 // HELPERS
 // =======
@@ -745,8 +892,8 @@ func testIdentifierType(t *testing.T, exp ast.Expression, value string) bool {
         t.Errorf("exp not *ast.Identifier. got=%T", exp)
         return false
     }
-    if identifier.Type.Literal != value {
-        t.Errorf("identifier.Type not %s. got=%s", value, identifier.Type.Literal)
+    if identifier.Type.Type.Literal != value {
+        t.Errorf("identifier.Type not %s. got=%s", value, identifier.Type.Type.Literal)
         return false
     }
     return true

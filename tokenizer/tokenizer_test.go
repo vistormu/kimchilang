@@ -636,6 +636,46 @@ func TestMap(t *testing.T) {
     runTest(t, input, tests)
 }
 
+func TestMutStatement(t *testing.T) {
+    input := `
+    mut x to 5
+    `
+
+    tests := []struct {
+        expectedType int
+        expectedSubtype int
+        expectedLiteral string
+    }{
+        {token.KEYWORD, token.MUT, "mut"},
+        {token.IDENTIFIER, token.IDENTIFIER, "x"},
+        {token.KEYWORD, token.TO, "to"},
+        {token.LITERAL, token.I64, "5"},
+
+        {token.EOF, token.EOF, "EOF"},
+    }
+
+    runTest(t, input, tests)
+}
+
+func TestExeStatement(t *testing.T) {
+    input := `
+    exe x
+    `
+
+    tests := []struct {
+        expectedType int
+        expectedSubtype int
+        expectedLiteral string
+    }{
+        {token.KEYWORD, token.EXE, "exe"},
+        {token.IDENTIFIER, token.IDENTIFIER, "x"},
+
+        {token.EOF, token.EOF, "EOF"},
+    }
+
+    runTest(t, input, tests)
+}
+
 
 // =======
 // Helpers

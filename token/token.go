@@ -24,8 +24,11 @@ const (
     // Subtypes
     // Statements
     LET
-    RETURN
     BE
+    MUT
+    TO
+    EXE
+    RETURN
 
     // Primitive types
     I64
@@ -95,6 +98,9 @@ var keywords = map[string]Token {
     "let": {KEYWORD, LET, "let"},
     "return": {KEYWORD, RETURN, "return"},
     "be": {KEYWORD, BE, "be"},
+    "mut": {KEYWORD, MUT, "mut"},
+    "to": {KEYWORD, TO, "to"},
+    "exe": {KEYWORD, EXE, "exe"},
     
     // Primitive types
     "i64": {TYPE, I64, "i64"},

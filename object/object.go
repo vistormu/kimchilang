@@ -23,6 +23,12 @@ const (
     MAP_OBJ
 )
 
+var (
+    NONE = &None{}
+    TRUE = &Bool{Value: true}
+    FALSE = &Bool{Value: false}
+)
+
 // =====
 // TYPES
 // =====
@@ -87,12 +93,6 @@ type None struct {
 }
 func (self *None) Type() int { return NONE_OBJ }
 func (self *None) Inspect() string { return "none" }
-
-type Error struct {
-    Message string
-}
-func (self *Error) Type() int { return ERROR_OBJ }
-func (self *Error) Inspect() string { return "ERROR: " + self.Message }
 
 // =============
 // COMPLEX TYPES
@@ -187,3 +187,4 @@ func (self *Map) Inspect() string {
 
     return out.String()
 }
+

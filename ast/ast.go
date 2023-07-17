@@ -93,29 +93,78 @@ func (self *BlockStatement) String() string {
     return out.String()
 }
 
+type MutStatement struct {
+    Identifier *Identifier
+    Expression Expression
+}
+func (self *MutStatement) statement() {}
+func (self *MutStatement) String() string {
+    var out bytes.Buffer
+
+    out.WriteString("mut ")
+    out.WriteString(self.Identifier.String())
+    out.WriteString(" to ")
+    out.WriteString(self.Expression.String())
+
+    return out.String()
+}
+
+type ExeStatement struct {
+    Function Expression
+    Arguments []Expression
+}
+func (self *ExeStatement) statement() {}
+func (self *ExeStatement) String() string {
+    var out bytes.Buffer
+
+    out.WriteString(self.Function.String())
+    out.WriteString("(")
+    for i, argument := range self.Arguments {
+        out.WriteString(argument.String())
+        if i < len(self.Arguments) - 1 {
+            out.WriteString(", ")
+        }
+    }
+    out.WriteString(")")
+
+    return out.String()
+}
+
+
 // ===========
 // EXPRESSIONS
 // ===========
 type Identifier struct {
     Name string
-    Type token.Token
+    Type *TypeLiteral
 }
 func (self *Identifier) expression() {}
 func (self *Identifier) String() string {
     var out bytes.Buffer
 
     out.WriteString(self.Name)
-    // out.WriteString(": ")
-    // out.WriteString(self.Type.Literal)
 
-    // if len(self.Subtypes) > 0 {
-    //     out.WriteString("<")
-    //     for _, subtype := range self.Subtypes {
-    //         out.WriteString(subtype.Literal)
-    //         out.WriteString(", ")
-    //     }
-    //     out.WriteString(">")
-    // }
+    return out.String()
+}
+
+type TypeLiteral struct {
+    Type token.Token
+    Subtypes []token.Token
+}
+func (self *TypeLiteral) expression() {}
+func (self *TypeLiteral) String() string {
+    var out bytes.Buffer
+
+    out.WriteString(self.Type.Literal)
+
+    if len(self.Subtypes) > 0 {
+        out.WriteString("<")
+        for _, subtype := range self.Subtypes {
+            out.WriteString(subtype.Literal)
+            out.WriteString(", ")
+        }
+        out.WriteString(">")
+    }
 
     return out.String()
 }
@@ -313,6 +362,26 @@ func (self *MapLiteral) String() string {
         out.WriteString(value.String())
     }
     out.WriteString(")")
+
+    return out.String()
+}
+
+
+// =====
+// LOOPS
+// =====
+type WhileExpression struct {
+    Condition Expression
+    Body *BlockStatement
+}
+func (self *WhileExpression) expression() {}
+func (self *WhileExpression) String() string {
+    var out bytes.Buffer
+
+    out.WriteString("while ")
+    out.WriteString(self.Condition.String())
+    out.WriteString(" ")
+    out.WriteString(self.Body.String())
 
     return out.String()
 }
