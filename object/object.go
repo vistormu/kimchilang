@@ -23,6 +23,20 @@ const (
     MAP_OBJ
 )
 
+var TypeName = map[int]string{
+    I64_OBJ: "i64",
+    F64_OBJ: "f64",
+    STR_OBJ: "str",
+    BOOL_OBJ: "bool",
+    NONE_OBJ: "none",
+    FN_OBJ: "fn",
+    RETURN_OBJ: "return",
+    ERROR_OBJ: "error",
+    BUILTIN_OBJ: "builtin",
+    LIST_OBJ: "list",
+    MAP_OBJ: "map",
+}
+
 var (
     NONE = &None{}
     TRUE = &Bool{Value: true}

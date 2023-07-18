@@ -89,7 +89,7 @@ func (self *Tokenizer) skipComment() {
 }
 func (self *Tokenizer) readIdentifier() string {
     position := self.position
-    for isLetter(self.char) || isNumber(self.char) {
+    for isLetter(self.char) || (isNumber(self.char) && self.char != '.') {
         self.readChar()
     }
     return self.input[position:self.position]

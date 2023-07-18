@@ -92,6 +92,17 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
         if len(args) == 1 && isError(args[0]) { return args[0] }
         return applyFunction(function, args)
 
+    case *ast.MethodExpression:
+        left := Eval(node.Left, env)
+        if isError(left) { return left }
+
+        method := Eval(node.Method, env)
+        if isError(method) { return method }
+
+        args := evalExpressions(node.Arguments, env)
+        if len(args) == 1 && isError(args[0]) { return args[0] }
+        return applyMethod(left, method, args)
+
     // Collections
     case *ast.MapLiteral:
         return evalMapLiteral(node, env)
@@ -332,8 +343,10 @@ func evalIndexExpression(left, index object.Object) object.Object {
         return evalListIndexExpression(left, index)
     case left.Type() == object.MAP_OBJ:
         return evalMapIndexExpression(left, index)
+    case left.Type() == object.STR_OBJ && index.Type() == object.I64_OBJ:
+        return evalStringIndexExpression(left, index)
     default:
-        return object.NewError("index operator not supported: %d", left.Type())
+        return object.NewError("index operator not supported: %s(%s)", object.TypeName[left.Type()], object.TypeName[index.Type()])
     }
 }
 func evalListIndexExpression(array, index object.Object) object.Object {
@@ -345,6 +358,16 @@ func evalListIndexExpression(array, index object.Object) object.Object {
         return object.NONE
     }
     return arrayObject.Elements[idx]
+}
+func evalStringIndexExpression(str, index object.Object) object.Object {
+    strObject := str.(*object.Str)
+    idx := index.(*object.I64).Value
+    max := int64(len(strObject.Value) - 1)
+
+    if idx < 0 || idx > max {
+        return object.NONE
+    }
+    return &object.Str{Value: string(strObject.Value[idx])}
 }
 
 // =========
@@ -362,8 +385,10 @@ func applyFunction(fn object.Object, args []object.Object) object.Object {
         return evalIndexExpression(fn, args[0])
     case *object.Map:
         return evalIndexExpression(fn, args[0])
+    case *object.Str:
+        return evalIndexExpression(fn, args[0])
     default:
-        return object.NewError("not a function: %d", fn.Type())
+        return object.NewError("not a function: %s", object.TypeName[fn.Type()])
     }
 }
 func extendFunctionEnv(fn *object.Function, args []object.Object) *object.Environment {
@@ -378,6 +403,14 @@ func unwrapReturnValue(obj object.Object) object.Object {
         return returnValue.Value
     }
     return obj
+}
+func applyMethod(left object.Object, method object.Object, args []object.Object) object.Object {
+    switch method := method.(type) {
+    case *object.BuiltIn:
+        return method.Function(append([]object.Object{left}, args...)...)
+    default:
+        return object.NewError("not a method: %d", method.Type())
+    }
 }
 
 // ===========

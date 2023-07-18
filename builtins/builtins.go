@@ -10,4 +10,10 @@ var Builtins = map[string]*object.BuiltIn{
     "input": { Function: Input },
     "type": { Function: Type },
     "read": { Function: Read },
+    "as_i64": { Function: AsI64 },
+    "as_f64": { Function: AsF64 },
+    "as_str": { Function: AsStr },
+    "split": { Function: Split },
+    "join": { Function: Join },
+    "append": { Function: Append },
 }

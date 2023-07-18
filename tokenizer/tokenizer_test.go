@@ -42,6 +42,8 @@ func TestLetStatements(t *testing.T) {
     let done_2 be false
     let message_2 be "Hello, World!"
     let array_2 be list(1, 2, 3, 4, 5)
+
+    let content: str = read("tests/input.txt")
     `
     tests := []struct {
         expectedType int
@@ -131,6 +133,16 @@ func TestLetStatements(t *testing.T) {
         {token.LITERAL, token.I64, "4"},
         {token.DELIMITER, token.COMMA, ","},
         {token.LITERAL, token.I64, "5"},
+        {token.DELIMITER, token.RPAREN, ")"},
+
+        {token.KEYWORD, token.LET, "let"},
+        {token.IDENTIFIER, token.IDENTIFIER, "content"},
+        {token.DELIMITER, token.COLON, ":"},
+        {token.TYPE, token.STR, "str"},
+        {token.OPERATOR, token.ASSIGN, "="},
+        {token.IDENTIFIER, token.IDENTIFIER, "read"},
+        {token.DELIMITER, token.LPAREN, "("},
+        {token.LITERAL, token.STR, "tests/input.txt"},
         {token.DELIMITER, token.RPAREN, ")"},
 
         {token.EOF, token.EOF, "EOF"},
@@ -670,6 +682,26 @@ func TestExeStatement(t *testing.T) {
         {token.KEYWORD, token.EXE, "exe"},
         {token.IDENTIFIER, token.IDENTIFIER, "x"},
 
+        {token.EOF, token.EOF, "EOF"},
+    }
+
+    runTest(t, input, tests)
+}
+
+func TestBuiltinMethod(t *testing.T) {
+    input := `
+    x.len()
+    `
+    tests := []struct {
+        expectedType int
+        expectedSubtype int
+        expectedLiteral string
+    }{
+        {token.IDENTIFIER, token.IDENTIFIER, "x"},
+        {token.DELIMITER, token.DOT, "."},
+        {token.IDENTIFIER, token.IDENTIFIER, "len"},
+        {token.DELIMITER, token.LPAREN, "("},
+        {token.DELIMITER, token.RPAREN, ")"},
         {token.EOF, token.EOF, "EOF"},
     }
 

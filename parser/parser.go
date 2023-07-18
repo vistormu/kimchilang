@@ -19,7 +19,7 @@ type (
 const (
     _ int = iota
     LOWEST
-    INDEX
+    METHOD
     AND
     EQUALS
     LESSGREATER
@@ -30,7 +30,7 @@ const (
 )
 
 var precedences = map[int]int {
-    token.DOT: INDEX,
+    token.DOT: METHOD,
     token.AND: AND,
     token.OR: AND,
     token.IS: EQUALS,
@@ -97,6 +97,7 @@ func New(tokenizer *tokenizer.Tokenizer) *Parser {
     parser.infixParseFns[token.AND] = parser.parseInfixExpression
     parser.infixParseFns[token.OR] = parser.parseInfixExpression
     parser.infixParseFns[token.LPAREN] = parser.parseCallExpression
+    parser.infixParseFns[token.DOT] = parser.parseDotExpression
 
     return parser
 }
@@ -436,6 +437,28 @@ func (self *Parser) parseFunctionParameters() []*ast.Identifier {
 func (self *Parser) parseCallExpression(function ast.Expression) ast.Expression {
     expression := &ast.CallExpression{Function: function}
     expression.Arguments = self.parseExpressionList()
+    return expression
+}
+func (self *Parser) parseDotExpression(leftExpression ast.Expression) ast.Expression {
+    if !self.expectPeekTokenToBe(token.IDENTIFIER) { return nil }
+    
+    switch self.peekToken.Subtype {
+    case token.LPAREN:
+        return self.parseMethodExpression(leftExpression)
+    default:
+        return self.parseAttributeExpression(leftExpression)
+    }
+}
+func (self *Parser) parseMethodExpression(leftExpression ast.Expression) ast.Expression {
+    expression := &ast.MethodExpression{Left: leftExpression}
+    expression.Method = self.parseIdentifier()
+    if !self.expectPeekTokenToBe(token.LPAREN) { return nil }
+    expression.Arguments = self.parseExpressionList()
+    return expression
+}
+func (self *Parser) parseAttributeExpression(leftExpression ast.Expression) ast.Expression {
+    expression := &ast.AttributeExpression{Left: leftExpression}
+    expression.Attribute = self.parseIdentifier()
     return expression
 }
 

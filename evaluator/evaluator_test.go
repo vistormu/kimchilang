@@ -347,6 +347,34 @@ func TestListIndexExpressions(t *testing.T) {
     }
 }
 
+func TestStringIndexExpressions(t *testing.T) {
+    tests := []struct {
+        input string
+        expected interface{}
+    }{
+        {`"abc"(0)`, "a"},
+        {`"abc"(1)`, "b"},
+        {`"abc"(2)`, "c"},
+        {`let i: i64 = 0 "abc"(i)`, "a"},
+        {`"abc"(1 + 1)`, "c"},
+        {`let my_str: str = "abc" my_str(2)`, "c"},
+        {`let my_str: str = "abc" my_str(0) + my_str(1) + my_str(2)`, "abc"},
+        {`"abc"(3)`, nil},
+        {`"abc"(-1)`, nil},
+    }
+
+    for _, tt := range tests {
+        evaluated := testEval(tt.input)
+
+        switch expected := tt.expected.(type) {
+        case string:
+            testStringObject(t, evaluated, expected)
+        case nil:
+            testNoneObject(t, evaluated)
+        }
+    }
+}
+
 func TestMapLiterals(t *testing.T) {
     input := `
     let two: str = "two"
@@ -427,6 +455,44 @@ func TestWhileExpression(t *testing.T) {
     testIntegerObject(t, evaluated, 10)
 }
 
+func TestMethodCalls(t *testing.T) {
+    input := `
+    let my_list: list(i64) = list(1, 2, 3)
+    my_list.len()
+    `
+    evaluated := testEval(input)
+    testIntegerObject(t, evaluated, 3)
+}
+
+func TestMethodReturnValues(t *testing.T) {
+    tests := []struct {
+        input string
+        expected interface{}
+    }{
+        { `let my_list: list(i64) = list(1, 2, 3) my_list.len()`, 3 },
+        { `let my_str: str = "Hello World" my_str.len()`, 11 },
+        { `let my_str: str = "Hello World" my_str.split(" ")`, []string{"Hello", "World"} },
+        { `let my_str: str = "Hello World" my_str.split(" ").len()`, 2 },
+        { `let my_str: str = "Hello World" my_str.split(" ")(0)`, "Hello" },
+        { `let my_list: list(str) = list("Hello", "World") my_list.join(" ")`, "Hello World" },
+        { `let a: list(i64) = list(1, 2, 3) a.append(4)`, []int64{1, 2, 3, 4}}, 
+    }
+
+    for _, tt := range tests {
+        evaluated := testEval(tt.input)
+
+        switch expected := tt.expected.(type) {
+        case int:
+            testIntegerObject(t, evaluated, int64(expected))
+        case string:
+            testStringObject(t, evaluated, expected)
+        case []string:
+            testStringListObject(t, evaluated, expected)
+        case []int64:
+            testIntegerListObject(t, evaluated, expected)
+        }
+    }
+}
 
 // =======
 // HELPERS
@@ -492,6 +558,40 @@ func testNoneObject(t *testing.T, obj object.Object) bool {
     if obj != object.NONE {
         t.Errorf("object is not None. got=%T (%+v)", obj, obj)
         return false
+    }
+    return true
+}
+func testStringListObject(t *testing.T, obj object.Object, expected []string) bool {
+    result, ok := obj.(*object.List)
+    if !ok {
+        t.Errorf("object is not List. got=%T (%+v)", obj, obj)
+        return false
+    }
+    if len(result.Elements) != len(expected) {
+        t.Errorf("wrong num of elements. got=%d, want=%d", len(result.Elements), len(expected))
+        return false
+    }
+    for i, expectedElement := range expected {
+        if !testStringObject(t, result.Elements[i], expectedElement) {
+            return false
+        }
+    }
+    return true
+}
+func testIntegerListObject(t *testing.T, obj object.Object, expected []int64) bool {
+    result, ok := obj.(*object.List)
+    if !ok {
+        t.Errorf("object is not List. got=%T (%+v)", obj, obj)
+        return false
+    }
+    if len(result.Elements) != len(expected) {
+        t.Errorf("wrong num of elements. got=%d, want=%d", len(result.Elements), len(expected))
+        return false
+    }
+    for i, expectedElement := range expected {
+        if !testIntegerObject(t, result.Elements[i], expectedElement) {
+            return false
+        }
     }
     return true
 }

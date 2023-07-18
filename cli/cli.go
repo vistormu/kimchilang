@@ -41,7 +41,11 @@ func main() {
         return 
     }
 
-    evaluator.Eval(program, env)
+    evaluated := evaluator.Eval(program, env)
+    if evaluated.Type() == object.ERROR_OBJ {
+        io.WriteString(out, evaluated.Inspect())
+        io.WriteString(out, "\n")
+    }
 }
 
 func printParserErrors(out io.Writer, errors []string) {
@@ -50,6 +54,3 @@ func printParserErrors(out io.Writer, errors []string) {
         io.WriteString(out, "\t"+msg+"\n")
     }
 }
-
-
-

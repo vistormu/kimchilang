@@ -816,6 +816,169 @@ func TestExeStatement(t *testing.T) {
 
 }
 
+func TestMethodExpression(t *testing.T) {
+    input := `
+    x.len()
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+    }
+
+    methodExpression, ok := stmt.Expression.(*ast.MethodExpression)
+    if !ok {
+        t.Fatalf("stmt.Expression is not ast.MethodExpression. got=%T", stmt.Expression)
+    }
+
+    if methodExpression.Left.String() != "x" {
+        t.Fatalf("methodExpression.Object.String() is not 'x'. got=%s", methodExpression.Left.String())
+    }
+
+    if methodExpression.Method.String() != "len" {
+        t.Fatalf("methodExpression.Method.String() is not 'len'. got=%s", methodExpression.Method.String())
+    }
+
+    if len(methodExpression.Arguments) != 0 {
+        t.Fatalf("methodExpression.Arguments does not contain %d arguments. got=%d\n", 0, len(methodExpression.Arguments))
+    }
+}
+
+func TestMethodExpressionWithArguments(t *testing.T) {
+    input := `
+    x.add(1, 2)
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+    }
+
+    methodExpression, ok := stmt.Expression.(*ast.MethodExpression)
+    if !ok {
+        t.Fatalf("stmt.Expression is not ast.MethodExpression. got=%T", stmt.Expression)
+    }
+
+    if methodExpression.Left.String() != "x" {
+        t.Fatalf("methodExpression.Object.String() is not 'x'. got=%s", methodExpression.Left.String())
+    }
+
+    if methodExpression.Method.String() != "add" {
+        t.Fatalf("methodExpression.Method.String() is not 'add'. got=%s", methodExpression.Method.String())
+    }
+
+    if len(methodExpression.Arguments) != 2 {
+        t.Fatalf("methodExpression.Arguments does not contain %d arguments. got=%d\n", 2, len(methodExpression.Arguments))
+    }
+
+    if methodExpression.Arguments[0].String() != "1" {
+        t.Fatalf("methodExpression.Arguments[0].String() is not '1'. got=%s", methodExpression.Arguments[0].String())
+    }
+
+    if methodExpression.Arguments[1].String() != "2" {
+        t.Fatalf("methodExpression.Arguments[1].String() is not '2'. got=%s", methodExpression.Arguments[1].String())
+    }
+}
+
+func TestAttributeExpression(t *testing.T) {
+    input := `
+    x.len
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+    }
+
+    attributeExpression, ok := stmt.Expression.(*ast.AttributeExpression)
+    if !ok {
+        t.Fatalf("stmt.Expression is not ast.AttributeExpression. got=%T", stmt.Expression)
+    }
+
+    if attributeExpression.Left.String() != "x" {
+        t.Fatalf("attributeExpression.Object.String() is not 'x'. got=%s", attributeExpression.Left.String())
+    }
+
+    if attributeExpression.Attribute.String() != "len" {
+        t.Fatalf("attributeExpression.Attribute.String() is not 'len'. got=%s", attributeExpression.Attribute.String())
+    }
+}
+
+func TestBuiltinFunctionExpression(t *testing.T) {
+    input := `
+    let content: str = read("test.txt")
+    `
+
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.LetStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.LetStatement. got=%T", program.Statements[0])
+    }
+
+    letStatement := stmt
+    if letStatement.Identifier.String() != "content" {
+        t.Fatalf("letStatement.Name.String() is not 'content'. got=%s", letStatement.Identifier.String())
+    }
+
+    if letStatement.Identifier.Type.String() != "str" {
+        t.Fatalf("letStatement.Type.String() is not 'str'. got=%s", letStatement.Identifier.Type.String())
+    }
+
+    if letStatement.Expression.String() != "read(test.txt)" {
+        t.Fatalf("letStatement.Value.String() is not 'read(\"test.txt\")'. got=%s", letStatement.Expression.String())
+    }
+
+    expression, ok := letStatement.Expression.(*ast.CallExpression)
+    if !ok {
+        t.Fatalf("letStatement.Value is not ast.CallExpression. got=%T", letStatement.Expression)
+    }
+
+    if expression.Function.String() != "read" {
+        t.Fatalf("expression.Function.String() is not 'read'. got=%s", expression.Function.String())
+    }
+
+    if len(expression.Arguments) != 1 {
+        t.Fatalf("expression.Arguments does not contain %d arguments. got=%d\n", 1, len(expression.Arguments))
+    }
+
+    if expression.Arguments[0].String() != "test.txt" {
+        t.Fatalf("expression.Arguments[0].String() is not 'test.txt'. got=%s", expression.Arguments[0].String())
+    }
+}
+
+
 // =======
 // HELPERS
 // =======

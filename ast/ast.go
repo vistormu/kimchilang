@@ -271,6 +271,45 @@ func (self *CallExpression) String() string {
     return out.String()
 }
 
+type MethodExpression struct {
+    Left Expression
+    Method Expression
+    Arguments []Expression
+}
+func (self *MethodExpression) expression() {}
+func (self *MethodExpression) String() string {
+    var out bytes.Buffer
+
+    out.WriteString(self.Left.String())
+    out.WriteString(".")
+    out.WriteString(self.Method.String())
+    out.WriteString("(")
+    for i, argument := range self.Arguments {
+        out.WriteString(argument.String())
+        if i < len(self.Arguments) - 1 {
+            out.WriteString(", ")
+        }
+    }
+    out.WriteString(")")
+
+    return out.String()
+}
+
+type AttributeExpression struct {
+    Left Expression
+    Attribute Expression
+}
+func (self *AttributeExpression) expression() {}
+func (self *AttributeExpression) String() string {
+    var out bytes.Buffer
+
+    out.WriteString(self.Left.String())
+    out.WriteString(".")
+    out.WriteString(self.Attribute.String())
+
+    return out.String()
+}
+
 // ========
 // LITERALS
 // ========
