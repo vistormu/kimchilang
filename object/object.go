@@ -3,6 +3,7 @@ package object
 import (
     "fmt"
     "bytes"
+    "strconv"
     "strings"
     "hash/fnv"
     "kimchi/ast"
@@ -21,6 +22,9 @@ const (
     BUILTIN_OBJ
     LIST_OBJ
     MAP_OBJ
+    SLICE_OBJ
+    CONTINUE_OBJ
+    BREAK_OBJ
 )
 
 var TypeName = map[int]string{
@@ -35,12 +39,17 @@ var TypeName = map[int]string{
     BUILTIN_OBJ: "builtin",
     LIST_OBJ: "list",
     MAP_OBJ: "map",
+    SLICE_OBJ: "slice",
+    CONTINUE_OBJ: "continue",
+    BREAK_OBJ: "break",
 }
 
 var (
     NONE = &None{}
     TRUE = &Bool{Value: true}
     FALSE = &Bool{Value: false}
+    BREAK = &Break{}
+    CONTINUE = &Continue{}
 )
 
 // =====
@@ -54,6 +63,13 @@ type Object interface {
 
 type BuiltInFunction func(args ...Object) Object
 
+type Hashable interface {
+    MapKey() MapKey
+}
+
+type Iterable interface {
+    Next(i int) Object
+}
 
 // ===============
 // PRIMITIVE TYPES
@@ -85,6 +101,12 @@ func (self *Str) MapKey() MapKey {
     h := fnv.New64a()
     h.Write([]byte(self.Value))
     return MapKey{Type: self.Type(), Value: h.Sum64()}
+}
+func (self *Str) Next(i int) Object {
+    if i < len(self.Value) {
+        return &Str{Value: string(self.Value[i])}
+    }
+    return NONE
 }
 
 type Bool struct {
@@ -166,13 +188,33 @@ func (self *List) Inspect() string {
 
     return out.String()
 }
+func (self *List) Next(i int) Object {
+    if i < len(self.Elements) {
+        return self.Elements[i]
+    }
+    return NONE
+}
+
+type Slice struct {
+    Start int
+    End int
+}
+func (self *Slice) Type() int { return SLICE_OBJ }
+func (self *Slice) Inspect() string {
+    var out bytes.Buffer
+
+    out.WriteString("(")
+    out.WriteString(strconv.Itoa(self.Start))
+    out.WriteString(" to ")
+    out.WriteString(strconv.Itoa(self.End))
+    out.WriteString(")")
+
+    return out.String()
+}
     
 // ==========
 // HASH TYPES
 // ==========
-type Hashable interface {
-    MapKey() MapKey
-}
 type MapKey struct {
     Type int
     Value uint64
@@ -202,3 +244,13 @@ func (self *Map) Inspect() string {
     return out.String()
 }
 
+// ============
+// CONTROL FLOW
+// ============
+type Break struct {}
+func (self *Break) Type() int { return BREAK_OBJ }
+func (self *Break) Inspect() string { return "break" }
+
+type Continue struct {}
+func (self *Continue) Type() int { return CONTINUE_OBJ }
+func (self *Continue) Inspect() string { return "continue" }

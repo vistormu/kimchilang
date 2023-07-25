@@ -198,14 +198,20 @@ func TestLetStatements(t *testing.T) {
 func TestMutStatements(t *testing.T) {
     tests := []struct {
         input string
-        expected int64
+        expected interface{}
     }{
         {"let a be 5 mut a to 10 a", 10},
         {"let a be 5 mut a to 10 mut a to 20 a", 20},
+        {"let a: list(i64) = list(1, 2, 3) mut a(0) to 0 a", []int64{0, 2, 3}},
     }
 
     for _, tt := range tests {
-        testIntegerObject(t, testEval(tt.input), tt.expected)
+        switch expected := tt.expected.(type) {
+        case int64:
+            testIntegerObject(t, testEval(tt.input), expected)
+        case []int64:
+            testIntegerListObject(t, testEval(tt.input), expected)
+        }
     }
 }
 
@@ -455,6 +461,52 @@ func TestWhileExpression(t *testing.T) {
     testIntegerObject(t, evaluated, 10)
 }
 
+func TestForExpression(t *testing.T) {
+    input := `
+    let result be 0
+    for i, _ in list(1, 2, 3) {
+        mut result to result + i
+    }
+    result
+    `
+
+    evaluated := testEval(input)
+    testIntegerObject(t, evaluated, 3)
+
+    input = `
+    let result be 0
+    for _, value in list(1, 2, 3) {
+        mut result to result + value
+    }
+    result
+    `
+
+    evaluated = testEval(input)
+    testIntegerObject(t, evaluated, 6)
+
+    input = `
+    let my_str: str = "abc"
+    let result: list(str) = list()
+    for _, letter in my_str {
+        mut result to .append(letter)
+    }
+    result
+    `
+    evaluated = testEval(input)
+    testStringListObject(t, evaluated, []string{"a", "b", "c"})
+
+    input = `
+    let my_str: str = "abc"
+    let counter be 0
+    for _, _ in my_str {
+        mut counter to counter + 1
+    }
+    my_str
+    `
+    evaluated = testEval(input)
+    testStringObject(t, evaluated, "abc")
+}
+
 func TestMethodCalls(t *testing.T) {
     input := `
     let my_list: list(i64) = list(1, 2, 3)
@@ -464,18 +516,14 @@ func TestMethodCalls(t *testing.T) {
     testIntegerObject(t, evaluated, 3)
 }
 
-func TestMethodReturnValues(t *testing.T) {
+func TestSliceExpressions(t *testing.T) {
     tests := []struct {
         input string
         expected interface{}
     }{
-        { `let my_list: list(i64) = list(1, 2, 3) my_list.len()`, 3 },
-        { `let my_str: str = "Hello World" my_str.len()`, 11 },
-        { `let my_str: str = "Hello World" my_str.split(" ")`, []string{"Hello", "World"} },
-        { `let my_str: str = "Hello World" my_str.split(" ").len()`, 2 },
-        { `let my_str: str = "Hello World" my_str.split(" ")(0)`, "Hello" },
-        { `let my_list: list(str) = list("Hello", "World") my_list.join(" ")`, "Hello World" },
-        { `let a: list(i64) = list(1, 2, 3) a.append(4)`, []int64{1, 2, 3, 4}}, 
+        { `let my_list: list(i64) = list(1 to 3) my_list.len()`, 2 },
+        { `let my_list: list(i64) = list(1 to 3) my_list(0)`, 1 },
+        { `let my_list: list(i64) = list(0, 1, 2, 3) my_list(0 to 2)`, []int64{0, 1} },
     }
 
     for _, tt := range tests {
@@ -484,14 +532,89 @@ func TestMethodReturnValues(t *testing.T) {
         switch expected := tt.expected.(type) {
         case int:
             testIntegerObject(t, evaluated, int64(expected))
-        case string:
-            testStringObject(t, evaluated, expected)
-        case []string:
-            testStringListObject(t, evaluated, expected)
         case []int64:
             testIntegerListObject(t, evaluated, expected)
         }
     }
+}
+
+func TestBreakStatement(t *testing.T) {
+    input := `
+    let result be 0
+    for i, _ in list(1, 2, 3) {
+        if i is 2 {
+            break
+        }
+        mut result to result + i
+    }
+    result
+    `
+
+    evaluated := testEval(input)
+    testIntegerObject(t, evaluated, 1)
+}
+
+func TestContinueStatement(t *testing.T) {
+    input := `
+    let result be 0
+    for i, _ in list(1, 2, 3) {
+        if i is 1 {
+            continue
+        }
+        mut result to result + i
+    }
+    result
+    `
+
+    evaluated := testEval(input)
+    testIntegerObject(t, evaluated, 2)
+}
+
+func TestReturnStatement(t *testing.T) {
+    input := `
+    let my_func: fn = fn(): i64 {
+        let result be 0
+        for i, _ in list(1, 2, 3) {
+            if i is 1 {
+                return result
+            }
+            mut result to result + i
+        }
+        return result
+    }
+    my_func()
+    `
+
+    evaluated := testEval(input)
+    testIntegerObject(t, evaluated, 0)
+}
+
+func TestBreakIfStatement(t *testing.T) {
+    input := `
+    let result be 0
+    for i, _ in list(1, 2, 3) {
+        break if i is 2
+        mut result to result + i
+    }
+    result
+    `
+
+    evaluated := testEval(input)
+    testIntegerObject(t, evaluated, 1)
+}
+
+func TestContinueIfStatement(t *testing.T) {
+    input := `
+    let result be 0
+    for i, _ in list(1, 2, 3) {
+        continue if i is 1
+        mut result to result + i
+    }
+    result
+    `
+
+    evaluated := testEval(input)
+    testIntegerObject(t, evaluated, 2)
 }
 
 // =======

@@ -6,6 +6,7 @@ import (
 
 var Builtins = map[string]*object.BuiltIn{
     "print": { Function: Print },
+    "printf": { Function: PrintF },
     "len": { Function: Len },
     "input": { Function: Input },
     "type": { Function: Type },
@@ -16,4 +17,10 @@ var Builtins = map[string]*object.BuiltIn{
     "split": { Function: Split },
     "join": { Function: Join },
     "append": { Function: Append },
+    "sum": { Function: Sum },
+    "max": { Function: Max },
+    "min": { Function: Min },
+    "sort": { Function: Sort },
+    "reverse": { Function: Reverse },
+    "concat": { Function: Concat },
 }

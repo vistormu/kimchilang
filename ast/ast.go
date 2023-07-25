@@ -94,7 +94,7 @@ func (self *BlockStatement) String() string {
 }
 
 type MutStatement struct {
-    Identifier *Identifier
+    Identifier Expression
     Expression Expression
 }
 func (self *MutStatement) statement() {}
@@ -229,7 +229,7 @@ func (self *IfExpression) String() string {
 
 type FunctionLiteral struct {
     Parameters []*Identifier
-    ReturnType token.Token
+    ReturnType *TypeLiteral
     Body *BlockStatement
 }
 func (self *FunctionLiteral) expression() {}
@@ -244,7 +244,7 @@ func (self *FunctionLiteral) String() string {
         }
     }
     out.WriteString("): ")
-    out.WriteString(self.ReturnType.Literal)
+    out.WriteString(self.ReturnType.String())
     out.WriteString(self.Body.String())
 
     return out.String()
@@ -367,23 +367,6 @@ func (self *ListLiteral) String() string {
     return out.String()
 }
 
-type IndexExpression struct {
-    Left Expression
-    Index Expression
-}
-func (self *IndexExpression) expression() {}
-func (self *IndexExpression) String() string {
-    var out bytes.Buffer
-
-    out.WriteString("(")
-    out.WriteString(self.Left.String())
-    out.WriteString("[")
-    out.WriteString(self.Index.String())
-    out.WriteString("])")
-
-    return out.String()
-}
-
 // ===========
 // COLLECTIONS
 // ===========
@@ -424,3 +407,58 @@ func (self *WhileExpression) String() string {
 
     return out.String()
 }
+
+type ForExpression struct {
+    Index *Identifier
+    Value *Identifier
+    Iterable Expression
+    Body *BlockStatement
+}
+func (self *ForExpression) expression() {}
+func (self *ForExpression) String() string {
+    var out bytes.Buffer
+
+    out.WriteString("for ")
+    out.WriteString(self.Index.String())
+    out.WriteString(", ")
+    out.WriteString(self.Value.String())
+    out.WriteString(" in ")
+    out.WriteString(self.Iterable.String())
+    out.WriteString(" ")
+    out.WriteString(self.Body.String())
+
+    return out.String()
+}
+
+type BreakStatement struct {
+    Condition Expression
+}
+func (self *BreakStatement) statement() {}
+func (self *BreakStatement) String() string {
+    var out bytes.Buffer
+
+    out.WriteString("break")
+    if self.Condition != nil {
+        out.WriteString(" if ")
+        out.WriteString(self.Condition.String())
+    }
+
+    return out.String()
+}
+
+type ContinueStatement struct {
+    Condition Expression
+}
+func (self *ContinueStatement) statement() {}
+func (self *ContinueStatement) String() string {
+    var out bytes.Buffer
+
+    out.WriteString("continue")
+    if self.Condition != nil {
+        out.WriteString(" if ")
+        out.WriteString(self.Condition.String())
+    }
+
+    return out.String()
+}
+

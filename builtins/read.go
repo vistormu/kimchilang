@@ -19,6 +19,6 @@ func Read(args ...object.Object) object.Object {
         return object.NewError("error reading file")
     }
 
-    data = []byte(strings.TrimSuffix(string(data), "\n"))
-    return &object.Str{Value: string(data)}
+    data_str := strings.TrimSuffix(string(data), "\n")
+    return &object.Str{Value: data_str}
 }

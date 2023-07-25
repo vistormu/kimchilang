@@ -1,1 +1,0 @@
-let content: str = read("tests/input.txt")

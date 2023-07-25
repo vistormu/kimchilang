@@ -1,9 +1,9 @@
 package evaluator
 
 import (
-    "kimchi/builtins"
-    "kimchi/object"
-    "kimchi/ast"
+	"kimchi/ast"
+	"kimchi/builtins"
+	"kimchi/object"
 )
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
@@ -18,9 +18,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
         return env.Set(node.Identifier.Name, val)
 
     case *ast.MutStatement:
-        val := Eval(node.Expression, env)
-        if isError(val) { return val }
-        return env.Set(node.Identifier.Name, val)
+        return evalMutStatement(node, env)
 
     case *ast.ExeStatement:
         function := Eval(node.Function, env)
@@ -41,6 +39,40 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
     case *ast.BlockStatement:
         return evalBlockStatement(node, env)
 
+    case *ast.BreakStatement:
+        if node.Condition != nil {
+            condition := Eval(node.Condition, env)
+            if isError(condition) { return condition }
+
+            if condition.Type() != object.BOOL_OBJ {
+                return object.NewError("condition must be BOOLEAN, got %s", object.TypeName[condition.Type()])
+            }
+
+            if condition.(*object.Bool).Value {
+                return object.BREAK
+            } else {
+                return object.NONE
+            }
+        }
+        return object.BREAK
+
+    case *ast.ContinueStatement:
+        if node.Condition != nil {
+            condition := Eval(node.Condition, env)
+            if isError(condition) { return condition }
+
+            if condition.Type() != object.BOOL_OBJ {
+                return object.NewError("condition must be BOOLEAN, got %s", object.TypeName[condition.Type()])
+            }
+
+            if condition.(*object.Bool).Value {
+                return object.CONTINUE
+            } else {
+                return object.NONE
+            }
+        }
+        return object.CONTINUE
+
     // Literals
     case *ast.IntegerLiteral:
         return &object.I64{Value: node.Value}
@@ -58,6 +90,14 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
     case *ast.ListLiteral:
         elements := evalExpressions(node.Elements, env)
         if len(elements) == 1 && isError(elements[0]) { return elements[0] }
+        if len(elements) == 0 { return &object.List{Elements: []object.Object{}} }
+        if elements[0].Type() == object.SLICE_OBJ {
+            slice := elements[0].(*object.Slice)
+            elements = elements[1:]
+            for i := slice.Start; i < slice.End; i++ {
+                elements = append(elements, &object.I64{Value: int64(i)})
+            }
+        }
         return &object.List{Elements: elements}
 
     // Expressions
@@ -110,8 +150,10 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
     // Loops
     case *ast.WhileExpression:
         return evalWhileExpression(node, env)
-    }
 
+    case *ast.ForExpression:
+        return evalForExpression(node, env)
+    }
 
     return nil
 }
@@ -152,14 +194,47 @@ func evalBlockStatement(block *ast.BlockStatement, env *object.Environment) obje
         result = Eval(statement, env)
 
         if result != nil {
-            rt := result.Type()
-            if rt == object.RETURN_OBJ || rt == object.ERROR_OBJ {
+            if result.Type() == object.RETURN_OBJ || result.Type() == object.ERROR_OBJ || result.Type() == object.BREAK_OBJ || result.Type() == object.CONTINUE_OBJ {
                 return result
             }
         }
     }
 
     return result
+}
+
+// ==========
+// STATEMENTS
+// ==========
+func evalMutStatement(node *ast.MutStatement, env *object.Environment) object.Object {
+    val := Eval(node.Expression, env)
+    if isError(val) { return val }
+
+    switch node.Identifier.(type) {
+    case *ast.Identifier:
+        return env.Set(node.Identifier.(*ast.Identifier).Name, val)
+    case *ast.CallExpression:
+        obj := Eval(node.Identifier.(*ast.CallExpression).Function, env)
+        if isError(obj) { return obj }
+        
+        if obj.Type() != object.LIST_OBJ {
+            return object.NewError("expected LIST, got %s", object.TypeName[obj.Type()])
+        }
+
+        index := Eval(node.Identifier.(*ast.CallExpression).Arguments[0], env)
+        if isError(index) { return index }
+
+        if index.Type() != object.I64_OBJ {
+            return object.NewError("expected I64, got %s", object.TypeName[index.Type()])
+        }
+
+        list := obj.(*object.List)
+        list.Elements[index.(*object.I64).Value] = val
+        return list
+
+    default:
+        return object.NewError("expected identifier, got %s", node.Identifier.String())
+    }
 }
 
 // ===========
@@ -189,7 +264,7 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
         return evalBooleanInfixExpression(operator, left, right)
     }
     if left.Type() != right.Type() {
-        return object.NewError("type mismatch: %d %s %d", left.Type(), operator, right.Type())
+        return object.NewError("cannot operate the values: %s %s %s", object.TypeName[left.Type()], operator, object.TypeName[right.Type()])
     }
     return object.NewError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
 }
@@ -268,6 +343,8 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
         return nativeBoolToObject(leftVal == rightVal)
     case "is_not":
         return nativeBoolToObject(leftVal != rightVal)
+    case "to":
+        return &object.Slice{Start: int(leftVal), End: int(rightVal)}
     default:
         return object.NewError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
     }
@@ -341,6 +418,8 @@ func evalIndexExpression(left, index object.Object) object.Object {
     switch {
     case left.Type() == object.LIST_OBJ && index.Type() == object.I64_OBJ:
         return evalListIndexExpression(left, index)
+    case left.Type() == object.LIST_OBJ && index.Type() == object.SLICE_OBJ:
+        return evalListSliceExpression(left, index)
     case left.Type() == object.MAP_OBJ:
         return evalMapIndexExpression(left, index)
     case left.Type() == object.STR_OBJ && index.Type() == object.I64_OBJ:
@@ -358,6 +437,17 @@ func evalListIndexExpression(array, index object.Object) object.Object {
         return object.NONE
     }
     return arrayObject.Elements[idx]
+}
+func evalListSliceExpression(array, index object.Object) object.Object {
+    arrayObject := array.(*object.List)
+    slice := index.(*object.Slice)
+    max := int(len(arrayObject.Elements))
+
+    if slice.Start < 0 || slice.End > max || slice.Start > slice.End || slice.Start == slice.End || slice.End < 0  || slice.Start > max {
+        return object.NONE
+    }
+
+    return &object.List{Elements: arrayObject.Elements[slice.Start:slice.End]}
 }
 func evalStringIndexExpression(str, index object.Object) object.Object {
     strObject := str.(*object.Str)
@@ -455,12 +545,47 @@ func evalWhileExpression(we *ast.WhileExpression, env *object.Environment) objec
     var result object.Object
     for isTruthy(condition) {
         result = Eval(we.Body, env)
+
         if isError(result) { return result }
+        if result.Type() == object.RETURN_OBJ { return result }
+        if result.Type() == object.BREAK_OBJ { break }
+        if result.Type() == object.CONTINUE_OBJ { continue }
 
         condition = Eval(we.Condition, env)
         if isError(condition) { return condition }
     }
     return result 
+}
+func evalForExpression(fe *ast.ForExpression, env *object.Environment) object.Object {
+    iterable := Eval(fe.Iterable, env)
+    if isError(iterable) { return iterable }
+
+    iterator, ok := iterable.(object.Iterable)
+    if !ok { return object.NewError("object is not iterable: %d", iterable.Type()) }
+
+    var result object.Object
+    var index int = -1
+    for true {
+        index++
+        element := iterator.Next(index)
+        if element == object.NONE { break }
+
+        if fe.Index.Name != "_" {
+            env.Set(fe.Index.Name, &object.I64{Value: int64(index)})
+        }
+        if fe.Value.Name != "_" {
+            env.Set(fe.Value.Name, element)
+        }
+
+        result = Eval(fe.Body, env)
+
+        if isError(result) { return result }
+        if result.Type() == object.BREAK_OBJ { break }
+        if result.Type() == object.CONTINUE_OBJ { continue }
+        if result.Type() == object.RETURN_OBJ { return result }
+    }
+
+    return result
 }
 
 // =======

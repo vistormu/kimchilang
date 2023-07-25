@@ -19,7 +19,6 @@ type (
 const (
     _ int = iota
     LOWEST
-    METHOD
     AND
     EQUALS
     LESSGREATER
@@ -30,9 +29,9 @@ const (
 )
 
 var precedences = map[int]int {
-    token.DOT: METHOD,
     token.AND: AND,
     token.OR: AND,
+    token.TO: AND,
     token.IS: EQUALS,
     token.IS_NOT: EQUALS,
     token.LT: LESSGREATER,
@@ -43,6 +42,7 @@ var precedences = map[int]int {
     token.MINUS: SUM,
     token.SLASH: PRODUCT,
     token.ASTERISK: PRODUCT,
+    token.DOT: CALL,
     token.LPAREN: CALL,
 }
 
@@ -82,6 +82,7 @@ func New(tokenizer *tokenizer.Tokenizer) *Parser {
     parser.prefixParseFns[token.LIST] = parser.parseListLiteral
     parser.prefixParseFns[token.MAP] = parser.parseMapLiteral
     parser.prefixParseFns[token.WHILE] = parser.parseWhileExpression
+    parser.prefixParseFns[token.FOR] = parser.parseForExpression
 
     parser.infixParseFns = make(map[int]infixParseFn)
     parser.infixParseFns[token.PLUS] = parser.parseInfixExpression
@@ -98,6 +99,7 @@ func New(tokenizer *tokenizer.Tokenizer) *Parser {
     parser.infixParseFns[token.OR] = parser.parseInfixExpression
     parser.infixParseFns[token.LPAREN] = parser.parseCallExpression
     parser.infixParseFns[token.DOT] = parser.parseDotExpression
+    parser.infixParseFns[token.TO] = parser.parseInfixExpression
 
     return parser
 }
@@ -128,7 +130,7 @@ func (self *Parser) nextToken() {
     self.peekToken = self.tokenizer.GetToken()
 }
 func (self *Parser) statementIsTerminated() bool {
-    if self.peekTokenIs(token.KEYWORD) || self.peekTokenIs(token.EOF) {
+    if (self.peekTokenIs(token.KEYWORD) && !self.peekTokenIs(token.TO)) || self.peekTokenIs(token.EOF) {
         return true
     }
     return false
@@ -187,6 +189,10 @@ func (self *Parser) parseStatement() ast.Statement {
         return self.parseMutStatement()
     case token.EXE:
         return self.parseExeStatement()
+    case token.BREAK:
+        return self.parseBreakStatement()
+    case token.CONTINUE:
+        return self.parseContinueStatement()
     default:
         return self.parseExpressionStatement()
     }
@@ -262,10 +268,22 @@ func (self *Parser) parseMutStatement() *ast.MutStatement {
     statement := &ast.MutStatement{}
 
     if !self.expectPeekTokenToBe(token.IDENTIFIER) { return nil }
-    statement.Identifier = self.parseIdentifier().(*ast.Identifier)
+    statement.Identifier = self.parseIdentifier()
+
+    if self.peekTokenIs(token.LPAREN) {
+        self.nextToken()
+        statement.Identifier = self.parseCallExpression(statement.Identifier)
+    }
 
     if !self.expectPeekTokenToBe(token.TO) { return nil }
-    self.nextToken()
+
+    if self.peekTokenIs(token.OPERATOR) || self.peekTokenIs(token.DOT) {
+        if ident, ok := statement.Identifier.(*ast.Identifier); ok {
+            self.currentToken = token.NewIdentifier(ident.Name)
+        }
+    } else {
+        self.nextToken()
+    }
 
     statement.Expression = self.parseExpression(LOWEST)
 
@@ -276,9 +294,35 @@ func (self *Parser) parseExeStatement() *ast.ExeStatement {
 
     if !self.expectPeekTokenToBe(token.IDENTIFIER) { return nil }
     statement.Function = self.parseIdentifier().(*ast.Identifier)
+
+    if self.peekTokenIs(token.LPAREN) {
+        self.nextToken()
+        statement.Arguments = self.parseExpressionList()
+    }
+
+    return statement
+}
+func (self *Parser) parseBreakStatement() ast.Statement {
+    statement := &ast.BreakStatement{}
+
+    if self.peekTokenIs(token.IF) {
+        self.nextToken()
+        self.nextToken()
+
+        statement.Condition = self.parseExpression(LOWEST)
+    }
+
+    return statement
+}
+func (self *Parser) parseContinueStatement() ast.Statement {
+    statement := &ast.ContinueStatement{}
     
-    if !self.expectPeekTokenToBe(token.LPAREN) { return nil }
-    statement.Arguments = self.parseExpressionList()
+    if self.peekTokenIs(token.IF) {
+        self.nextToken()
+        self.nextToken()
+
+        statement.Condition = self.parseExpression(LOWEST)
+    }
 
     return statement
 }
@@ -377,6 +421,14 @@ func (self *Parser) parseIfExpression() ast.Expression {
 
     if self.peekTokenIs(token.ELSE) {
         self.nextToken()
+
+        if self.peekTokenIs(token.IF) {
+            self.nextToken()
+            expression.Alternative = &ast.BlockStatement{Statements: []ast.Statement{&ast.ExpressionStatement{Expression: self.parseIfExpression()}}}
+
+            return expression
+        }
+
         if !self.expectPeekTokenToBe(token.LBRACE) { return nil }
         expression.Alternative = self.parseBlockStatement()
     }
@@ -393,7 +445,7 @@ func (self *Parser) parseFunctionLiteral() ast.Expression {
     if !self.expectPeekTokenToBe(token.COLON) { return nil }
 
     if !self.expectPeekTokenToBe(token.TYPE) { return nil }
-    literal.ReturnType = self.currentToken
+    literal.ReturnType = self.parseTypeLiteral()
 
     if !self.expectPeekTokenToBe(token.LBRACE) { return nil }
 
@@ -437,30 +489,37 @@ func (self *Parser) parseFunctionParameters() []*ast.Identifier {
 func (self *Parser) parseCallExpression(function ast.Expression) ast.Expression {
     expression := &ast.CallExpression{Function: function}
     expression.Arguments = self.parseExpressionList()
+
     return expression
 }
 func (self *Parser) parseDotExpression(leftExpression ast.Expression) ast.Expression {
     if !self.expectPeekTokenToBe(token.IDENTIFIER) { return nil }
+
+    return self.parseMethodExpression(leftExpression)
     
-    switch self.peekToken.Subtype {
-    case token.LPAREN:
-        return self.parseMethodExpression(leftExpression)
-    default:
-        return self.parseAttributeExpression(leftExpression)
-    }
+    // switch self.peekToken.Subtype {
+    // case token.LPAREN:
+    //     return self.parseMethodExpression(leftExpression)
+    // default:
+        // return self.parseAttributeExpression(leftExpression)
+    // }
 }
 func (self *Parser) parseMethodExpression(leftExpression ast.Expression) ast.Expression {
     expression := &ast.MethodExpression{Left: leftExpression}
     expression.Method = self.parseIdentifier()
-    if !self.expectPeekTokenToBe(token.LPAREN) { return nil }
-    expression.Arguments = self.parseExpressionList()
+
+    if self.peekTokenIs(token.LPAREN) {
+        self.nextToken()
+        expression.Arguments = self.parseExpressionList()
+    }
+
     return expression
 }
-func (self *Parser) parseAttributeExpression(leftExpression ast.Expression) ast.Expression {
-    expression := &ast.AttributeExpression{Left: leftExpression}
-    expression.Attribute = self.parseIdentifier()
-    return expression
-}
+// func (self *Parser) parseAttributeExpression(leftExpression ast.Expression) ast.Expression {
+//     expression := &ast.AttributeExpression{Left: leftExpression}
+//     expression.Attribute = self.parseIdentifier()
+//     return expression
+// }
 
 // ========
 // LITERALS
@@ -575,5 +634,35 @@ func (self *Parser) parseWhileExpression() ast.Expression {
 
     expression.Body = self.parseBlockStatement()
     
+    return expression
+}
+func (self *Parser) parseForExpression() ast.Expression {
+    expression := &ast.ForExpression{}
+
+    if !self.peekTokenIs(token.IDENTIFIER) && !self.peekTokenIs(token.UNDERSCORE) { 
+        self.addPeekError(self.peekToken.Subtype)
+        return nil 
+    }
+    self.nextToken()
+    expression.Index = self.parseIdentifier().(*ast.Identifier)
+
+    if !self.expectPeekTokenToBe(token.COMMA) { return nil } 
+
+    if !self.peekTokenIs(token.IDENTIFIER) && !self.peekTokenIs(token.UNDERSCORE) { 
+        self.addPeekError(self.peekToken.Subtype)
+        return nil 
+    }
+    self.nextToken()
+    expression.Value = self.parseIdentifier().(*ast.Identifier)
+
+    if !self.expectPeekTokenToBe(token.IN) { return nil }
+    self.nextToken()
+
+    expression.Iterable = self.parseExpression(LOWEST)
+
+    if !self.expectPeekTokenToBe(token.LBRACE) { return nil }
+
+    expression.Body = self.parseBlockStatement()
+
     return expression
 }

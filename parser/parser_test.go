@@ -391,8 +391,8 @@ func TestFunctionLiteralParsing(t *testing.T) {
     testIdentifierType(t, function.Parameters[0], "i64")
     testIdentifierType(t, function.Parameters[1], "bool")
 
-    if function.ReturnType.Literal != "f64" {
-        t.Fatalf("function literal return type wrong. want f64, got=%s\n", function.ReturnType.Literal)
+    if function.ReturnType.Type.Literal != "f64" {
+        t.Fatalf("function literal return type wrong. want f64, got=%s\n", function.ReturnType.Type.Literal)
     }
 
     if len(function.Body.Statements) != 1 {
@@ -757,6 +757,57 @@ func TestWhileExpression(t *testing.T) {
     }
 }
 
+func TestForExpression(t *testing.T) {
+    input := `
+    for _, x in list(1, 2, 3) {
+        print(x)
+    }
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+    }
+
+    forExpression, ok := stmt.Expression.(*ast.ForExpression)
+    if !ok {
+        t.Fatalf("stmt.Expression is not ast.ForExpression. got=%T", stmt.Expression)
+    }
+
+    if forExpression.Index.String() != "_" {
+        t.Fatalf("forExpression.Index.String() is not '_'. got=%s", forExpression.Index.String())
+    }
+
+    if forExpression.Value.String() != "x" {
+        t.Fatalf("forExpression.Value.String() is not 'x'. got=%s", forExpression.Value.String())
+    }
+
+    if forExpression.Iterable.String() != "list(1, 2, 3)" {
+        t.Fatalf("forExpression.Iterable.String() is not 'list(1, 2, 3)'. got=%s", forExpression.Iterable.String())
+    }
+
+    if len(forExpression.Body.Statements) != 1 {
+        t.Fatalf("forExpression.Block.Statements does not contain %d statements. got=%d\n", 1, len(forExpression.Body.Statements))
+    }
+
+    blockStmt, ok := forExpression.Body.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("forExpression.Block.Statements[0] is not ast.ExpressionStatement. got=%T", forExpression.Body.Statements[0])
+    }
+
+    if blockStmt.Expression.String() != "print(x)" {
+        t.Fatalf("blockStmt.Expression.String() is not 'print(x)'. got=%s", blockStmt.Expression.String())
+    }
+}
+
 func TestMutStatement(t *testing.T) {
     input := `
     mut x to 5
@@ -785,6 +836,69 @@ func TestMutStatement(t *testing.T) {
 
     if stmt.String() != "mut x to 5" {
         t.Fatalf("stmt.String() is not 'mut x to 5'. got=%s", stmt.String())
+    }
+}
+
+func TestMutStatementWithReducedRedundandy(t *testing.T) {
+    input := `
+    mut x to + 1
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.MutStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.MutStatement. got=%T", program.Statements[0])
+    }
+
+    if stmt.Identifier.String() != "x" {
+        t.Fatalf("stmt.Identifier.String() is not 'x'. got=%s", stmt.Identifier.String())
+    }
+
+    if stmt.Expression.String() != "(x + 1)" {
+        t.Fatalf("stmt.Value.String() is not 'x+1'. got=%s", stmt.Expression.String())
+    }
+
+    if stmt.String() != "mut x to (x + 1)" {
+        t.Fatalf("stmt.String() is not 'mut x to x+1'. got=%s", stmt.String())
+    }
+}
+
+func TestMutStatementForListIndex(t *testing.T) {
+    input := `
+    mut my_list(0) to 5
+    `
+
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.MutStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.MutStatement. got=%T", program.Statements[0])
+    }
+
+    if stmt.Identifier.String() != "my_list(0)" {
+        t.Fatalf("stmt.Identifier.String() is not 'list(1, 2, 3)[0]'. got=%s", stmt.Identifier.String())
+    }
+
+    if stmt.Expression.String() != "5" {
+        t.Fatalf("stmt.Value.String() is not '5'. got=%s", stmt.Expression.String())
+    }
+
+    if stmt.String() != "mut my_list(0) to 5" {
+        t.Fatalf("stmt.String() is not 'mut list(1, 2, 3)[0] to 5'. got=%s", stmt.String())
     }
 }
 
@@ -896,37 +1010,37 @@ func TestMethodExpressionWithArguments(t *testing.T) {
     }
 }
 
-func TestAttributeExpression(t *testing.T) {
-    input := `
-    x.len
-    `
-    tokenizer := tokenizer.New(input)
-    parser := New(tokenizer)
-    program := parser.ParseProgram()
-    checkParserErrors(t, parser)
+// func TestAttributeExpression(t *testing.T) {
+//     input := `
+//     x.len
+//     `
+//     tokenizer := tokenizer.New(input)
+//     parser := New(tokenizer)
+//     program := parser.ParseProgram()
+//     checkParserErrors(t, parser)
 
-    if len(program.Statements) != 1 {
-        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
-    }
+//     if len(program.Statements) != 1 {
+//         t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+//     }
 
-    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-    if !ok {
-        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
-    }
+//     stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+//     if !ok {
+//         t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+//     }
 
-    attributeExpression, ok := stmt.Expression.(*ast.AttributeExpression)
-    if !ok {
-        t.Fatalf("stmt.Expression is not ast.AttributeExpression. got=%T", stmt.Expression)
-    }
+//     attributeExpression, ok := stmt.Expression.(*ast.AttributeExpression)
+//     if !ok {
+//         t.Fatalf("stmt.Expression is not ast.AttributeExpression. got=%T", stmt.Expression)
+//     }
 
-    if attributeExpression.Left.String() != "x" {
-        t.Fatalf("attributeExpression.Object.String() is not 'x'. got=%s", attributeExpression.Left.String())
-    }
+//     if attributeExpression.Left.String() != "x" {
+//         t.Fatalf("attributeExpression.Object.String() is not 'x'. got=%s", attributeExpression.Left.String())
+//     }
 
-    if attributeExpression.Attribute.String() != "len" {
-        t.Fatalf("attributeExpression.Attribute.String() is not 'len'. got=%s", attributeExpression.Attribute.String())
-    }
-}
+//     if attributeExpression.Attribute.String() != "len" {
+//         t.Fatalf("attributeExpression.Attribute.String() is not 'len'. got=%s", attributeExpression.Attribute.String())
+//     }
+// }
 
 func TestBuiltinFunctionExpression(t *testing.T) {
     input := `
@@ -978,6 +1092,151 @@ func TestBuiltinFunctionExpression(t *testing.T) {
     }
 }
 
+func TestSliceExpression(t *testing.T) {
+    input := `
+    1 to 2
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+    }
+
+    sliceExpression, ok := stmt.Expression.(*ast.InfixExpression)
+    if !ok {
+        t.Fatalf("stmt.Expression is not ast.SliceExpression. got=%T", stmt.Expression)
+    }
+
+    if sliceExpression.Left.String() != "1" {
+        t.Fatalf("sliceExpression.Object.String() is not 'x'. got=%s", sliceExpression.Left.String())
+    }
+
+    if sliceExpression.Operator != "to" {
+        t.Fatalf("sliceExpression.Operator is not 'to'. got=%s", sliceExpression.Operator)
+    }
+
+    if sliceExpression.Right.String() != "2" {
+        t.Fatalf("sliceExpression.Start.String() is not '1'. got=%s", sliceExpression.Right.String())
+    }
+}
+
+func TestBreakStatement(t *testing.T) {
+    input := `
+    break
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.BreakStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.BreakStatement. got=%T", program.Statements[0])
+    }
+
+    if stmt.String() != "break" {
+        t.Fatalf("stmt.String() is not 'break'. got=%s", stmt.String())
+    }
+}
+
+func TestContinueStatement(t *testing.T) {
+    input := `
+    continue
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ContinueStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ContinueStatement. got=%T", program.Statements[0])
+    }
+
+    if stmt.String() != "continue" {
+        t.Fatalf("stmt.String() is not 'continue'. got=%s", stmt.String())
+    }
+}
+
+func TestBreakIfStatement(t *testing.T) {
+    input := `
+    break if true
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.BreakStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.BreakIfStatement. got=%T", program.Statements[0])
+    }
+
+    condition, ok := stmt.Condition.(ast.Expression)
+    if !ok {
+        t.Fatalf("stmt.Condition is not ast.Expression. got=%T", stmt.Condition)
+    }
+
+    if condition.String() != "true" {
+        t.Fatalf("stmt.Condition.String() is not 'true'. got=%s", condition.String())
+    }
+
+    if stmt.String() != "break if true" {
+        t.Fatalf("stmt.String() is not 'break if true'. got=%s", stmt.String())
+    }
+}
+
+func TestContinueIfStatement(t *testing.T) {
+    input := `
+    continue if true
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ContinueStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ContinueIfStatement. got=%T", program.Statements[0])
+    }
+
+    condition, ok := stmt.Condition.(ast.Expression)
+    if !ok {
+        t.Fatalf("stmt.Condition is not ast.Expression. got=%T", stmt.Condition)
+    }
+
+    if condition.String() != "true" {
+        t.Fatalf("stmt.Condition.String() is not 'true'. got=%s", condition.String())
+    }
+
+    if stmt.String() != "continue if true" {
+        t.Fatalf("stmt.String() is not 'continue if true'. got=%s", stmt.String())
+    }
+}
 
 // =======
 // HELPERS

@@ -19,10 +19,15 @@ func Split(args ...object.Object) object.Object {
         return object.NewError("split() cannot split on empty string")
     }
     
-    str_value := args[0].(*object.Str).Value
-    sep_value := args[1].(*object.Str).Value
+    strValue := args[0].(*object.Str).Value
+    sepValue := args[1].(*object.Str).Value
 
-    elements := strings.Split(str_value, sep_value)
+    // TODO: This is a hack. Need to figure out how to do this properly.
+    if strings.Contains(sepValue, "\\n") {
+        sepValue = strings.Replace(sepValue, "\\n", "\n", -1)
+    }
+
+    elements := strings.Split(strValue, sepValue)
 
     result := &object.List{Elements: make([]object.Object, len(elements))}
     for i, element := range elements {
