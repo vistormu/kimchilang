@@ -434,7 +434,7 @@ func evalListIndexExpression(array, index object.Object) object.Object {
     max := int64(len(arrayObject.Elements) - 1)
 
     if idx < 0 || idx > max {
-        return object.NONE
+        return object.NewError("index out of range: %d", idx)
     }
     return arrayObject.Elements[idx]
 }
@@ -444,7 +444,7 @@ func evalListSliceExpression(array, index object.Object) object.Object {
     max := int(len(arrayObject.Elements))
 
     if slice.Start < 0 || slice.End > max || slice.Start > slice.End || slice.Start == slice.End || slice.End < 0  || slice.Start > max {
-        return object.NONE
+        return object.NewError("slice index out of range: %d:%d", slice.Start, slice.End)
     }
 
     return &object.List{Elements: arrayObject.Elements[slice.Start:slice.End]}
@@ -580,7 +580,7 @@ func evalForExpression(fe *ast.ForExpression, env *object.Environment) object.Ob
         result = Eval(fe.Body, env)
 
         if isError(result) { return result }
-        if result.Type() == object.BREAK_OBJ { break }
+        if result.Type() == object.BREAK_OBJ { return object.NONE }
         if result.Type() == object.CONTINUE_OBJ { continue }
         if result.Type() == object.RETURN_OBJ { return result }
     }

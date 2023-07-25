@@ -277,7 +277,7 @@ func (self *Parser) parseMutStatement() *ast.MutStatement {
 
     if !self.expectPeekTokenToBe(token.TO) { return nil }
 
-    if self.peekTokenIs(token.OPERATOR) || self.peekTokenIs(token.DOT) {
+    if self.peekTokenIs(token.OPERATOR) || self.peekTokenIs(token.DELIMITER) {
         if ident, ok := statement.Identifier.(*ast.Identifier); ok {
             self.currentToken = token.NewIdentifier(ident.Name)
         }

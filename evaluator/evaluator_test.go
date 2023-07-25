@@ -337,8 +337,6 @@ func TestListIndexExpressions(t *testing.T) {
         {"let my_list: list = list(1, 2, 3) my_list(2)", 3},
         {"let my_list: list = list(1, 2, 3) my_list(0) + my_list(1) + my_list(2)", 6},
         {"let my_list: list = list(1, 2, 3) let i: i64 = my_list(0) my_list(i)", 2},
-        {"list(1, 2, 3)(3)", nil},
-        {"list(1, 2, 3)(-1)", nil},
     }
 
     for _, tt := range tests {
@@ -552,6 +550,25 @@ func TestBreakStatement(t *testing.T) {
 
     evaluated := testEval(input)
     testIntegerObject(t, evaluated, 1)
+}
+
+func TestNestedBreakStatement(t *testing.T) {
+    input := `
+    let result be 0
+    for i, _ in list(0, 1, 2) {
+        for j, _ in list(0, 1, 2) {
+            if j is 2 {
+                break
+            }
+            mut result to result + j
+        }
+        mut result to result + i
+    }
+    result
+    `
+
+    evaluated := testEval(input)
+    testIntegerObject(t, evaluated, 6)
 }
 
 func TestContinueStatement(t *testing.T) {
