@@ -114,3 +114,28 @@ func TestConcat(t *testing.T) {
     evaluated := testEval(input)
     testIntegerListObject(t, evaluated, []int64{1, 2, 3, 4, 5, 6})
 }
+
+func TestWithSize(t *testing.T) {
+    input := `
+    let x: list = list().with_size(2)
+    x.len
+    `
+    evaluated := testEval(input)
+    testIntegerObject(t, evaluated, 2)
+
+    input = `
+    let x: list = list().with_size(5, 4)
+    x(0).len
+    `
+    evaluated = testEval(input)
+    testIntegerObject(t, evaluated, 4)
+}
+
+func TestTranspose(t *testing.T) {
+    input := `
+    let x: list = list(list(1, 2, 3), list(4, 5, 6)).transpose()
+    list(x.len, x(0).len)
+    `
+    evaluated := testEval(input)
+    testIntegerListObject(t, evaluated, []int64{3, 2})
+}

@@ -194,6 +194,11 @@ func (self *List) Next(i int) Object {
     }
     return NONE
 }
+func (self *List) Copy() *List {
+    elements := make([]Object, len(self.Elements))
+    copy(elements, self.Elements)
+    return &List{Elements: elements}
+}
 
 type Slice struct {
     Start int

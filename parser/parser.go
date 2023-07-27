@@ -245,7 +245,13 @@ func (self *Parser) parseLetStatement() *ast.LetStatement {
 func (self *Parser) parseLetBeStatement(statement *ast.LetStatement) *ast.LetStatement {
     self.nextToken()
 
-    if !self.expectPeekTokenToBe(token.LITERAL) { return nil }
+    if !self.peekTokenIs(token.FN) && !self.peekTokenIs(token.LITERAL) { 
+        self.addPeekError(token.LITERAL)
+        return nil
+    }
+    self.nextToken()
+
+    // if !self.expectPeekTokenToBe(token.LITERAL) { return nil }
     statement.Identifier.Type = self.parseTypeLiteral()
     statement.Expression = self.parseExpression(LOWEST)
 
@@ -270,7 +276,7 @@ func (self *Parser) parseMutStatement() *ast.MutStatement {
     if !self.expectPeekTokenToBe(token.IDENTIFIER) { return nil }
     statement.Identifier = self.parseIdentifier()
 
-    if self.peekTokenIs(token.LPAREN) {
+    for self.peekTokenIs(token.LPAREN) {
         self.nextToken()
         statement.Identifier = self.parseCallExpression(statement.Identifier)
     }

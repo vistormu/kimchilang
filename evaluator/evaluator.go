@@ -15,6 +15,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
     case *ast.LetStatement:
         val := Eval(node.Expression, env)
         if isError(val) { return val }
+        if val.Type() == object.LIST_OBJ {
+            return env.Set(node.Identifier.Name, val.(*object.List).Copy())
+        }
         return env.Set(node.Identifier.Name, val)
 
     case *ast.MutStatement:
@@ -93,10 +96,14 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
         if len(elements) == 0 { return &object.List{Elements: []object.Object{}} }
         if elements[0].Type() == object.SLICE_OBJ {
             slice := elements[0].(*object.Slice)
-            elements = elements[1:]
+            list_elements := make([]object.Object, 0)
             for i := slice.Start; i < slice.End; i++ {
-                elements = append(elements, &object.I64{Value: int64(i)})
+                list_elements = append(list_elements, &object.I64{Value: int64(i)})
             }
+            if len(list_elements) == 0 {
+                list_elements = append(list_elements, &object.I64{Value: int64(slice.Start)})
+            }
+            return &object.List{Elements: list_elements}
         }
         return &object.List{Elements: elements}
 
@@ -424,6 +431,8 @@ func evalIndexExpression(left, index object.Object) object.Object {
         return evalMapIndexExpression(left, index)
     case left.Type() == object.STR_OBJ && index.Type() == object.I64_OBJ:
         return evalStringIndexExpression(left, index)
+    case left.Type() == object.STR_OBJ && index.Type() == object.SLICE_OBJ:
+        return evalStringSliceExpression(left, index)
     default:
         return object.NewError("index operator not supported: %s(%s)", object.TypeName[left.Type()], object.TypeName[index.Type()])
     }
@@ -443,7 +452,7 @@ func evalListSliceExpression(array, index object.Object) object.Object {
     slice := index.(*object.Slice)
     max := int(len(arrayObject.Elements))
 
-    if slice.Start < 0 || slice.End > max || slice.Start > slice.End || slice.Start == slice.End || slice.End < 0  || slice.Start > max {
+    if slice.Start < 0 || slice.End > max || slice.Start > slice.End || slice.End < 0  || slice.Start > max {
         return object.NewError("slice index out of range: %d:%d", slice.Start, slice.End)
     }
 
@@ -455,9 +464,20 @@ func evalStringIndexExpression(str, index object.Object) object.Object {
     max := int64(len(strObject.Value) - 1)
 
     if idx < 0 || idx > max {
-        return object.NONE
+        return object.NewError("index out of range: %d", idx)
     }
     return &object.Str{Value: string(strObject.Value[idx])}
+}
+func evalStringSliceExpression(str, index object.Object) object.Object {
+    strObject := str.(*object.Str)
+    slice := index.(*object.Slice)
+    max := int(len(strObject.Value))
+
+    if slice.Start < 0 || slice.End > max || slice.Start > slice.End || slice.End < 0  || slice.Start > max {
+        return object.NewError("slice index out of range: %d:%d", slice.Start, slice.End)
+    }
+
+    return &object.Str{Value: string(strObject.Value[slice.Start:slice.End])}
 }
 
 // =========

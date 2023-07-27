@@ -23,4 +23,6 @@ var Builtins = map[string]*object.BuiltIn{
     "sort": { Function: Sort },
     "reverse": { Function: Reverse },
     "concat": { Function: Concat },
+    "with_size": { Function: WithSize },
+    "transpose": { Function: Transpose },
 }

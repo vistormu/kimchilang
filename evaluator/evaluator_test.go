@@ -363,8 +363,6 @@ func TestStringIndexExpressions(t *testing.T) {
         {`"abc"(1 + 1)`, "c"},
         {`let my_str: str = "abc" my_str(2)`, "c"},
         {`let my_str: str = "abc" my_str(0) + my_str(1) + my_str(2)`, "abc"},
-        {`"abc"(3)`, nil},
-        {`"abc"(-1)`, nil},
     }
 
     for _, tt := range tests {
@@ -522,6 +520,8 @@ func TestSliceExpressions(t *testing.T) {
         { `let my_list: list(i64) = list(1 to 3) my_list.len()`, 2 },
         { `let my_list: list(i64) = list(1 to 3) my_list(0)`, 1 },
         { `let my_list: list(i64) = list(0, 1, 2, 3) my_list(0 to 2)`, []int64{0, 1} },
+        { `let my_list: list(i64) = list(1 to 1) my_list`, []int64{1} },
+        { `let my_msg be "Hello, World!" my_msg(0 to 5)`, "Hello" },
     }
 
     for _, tt := range tests {
@@ -532,6 +532,8 @@ func TestSliceExpressions(t *testing.T) {
             testIntegerObject(t, evaluated, int64(expected))
         case []int64:
             testIntegerListObject(t, evaluated, expected)
+        case string:
+            testStringObject(t, evaluated, expected)
         }
     }
 }
@@ -632,6 +634,17 @@ func TestContinueIfStatement(t *testing.T) {
 
     evaluated := testEval(input)
     testIntegerObject(t, evaluated, 2)
+}
+
+func TestListMutation(t *testing.T) {
+    input := `
+    let a: list(i64) = list(1, 2, 3)
+    let b: list(i64) = a
+    mut a(0) to 4
+    b
+    `
+    evaluated := testEval(input)
+    testIntegerListObject(t, evaluated, []int64{1, 2, 3})
 }
 
 // =======
