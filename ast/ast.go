@@ -271,13 +271,13 @@ func (self *CallExpression) String() string {
     return out.String()
 }
 
-type MethodExpression struct {
+type DotExpression struct {
     Left Expression
     Method Expression
     Arguments []Expression
 }
-func (self *MethodExpression) expression() {}
-func (self *MethodExpression) String() string {
+func (self *DotExpression) expression() {}
+func (self *DotExpression) String() string {
     var out bytes.Buffer
 
     out.WriteString(self.Left.String())
@@ -291,21 +291,6 @@ func (self *MethodExpression) String() string {
         }
     }
     out.WriteString(")")
-
-    return out.String()
-}
-
-type AttributeExpression struct {
-    Left Expression
-    Attribute Expression
-}
-func (self *AttributeExpression) expression() {}
-func (self *AttributeExpression) String() string {
-    var out bytes.Buffer
-
-    out.WriteString(self.Left.String())
-    out.WriteString(".")
-    out.WriteString(self.Attribute.String())
 
     return out.String()
 }
@@ -382,6 +367,25 @@ func (self *MapLiteral) String() string {
         out.WriteString(key.String())
         out.WriteString(": ")
         out.WriteString(value.String())
+    }
+    out.WriteString(")")
+
+    return out.String()
+}
+
+type StructLiteral struct {
+    Fields []*Identifier
+}
+func (self *StructLiteral) expression() {}
+func (self *StructLiteral) String() string {
+    var out bytes.Buffer
+
+    out.WriteString("struct(")
+    for i, parameter := range self.Fields {
+        out.WriteString(parameter.String())
+        if i < len(self.Fields) - 1 {
+            out.WriteString(", ")
+        }
     }
     out.WriteString(")")
 

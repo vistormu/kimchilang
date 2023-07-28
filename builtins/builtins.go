@@ -25,4 +25,5 @@ var Builtins = map[string]*object.BuiltIn{
     "concat": { Function: Concat },
     "with_size": { Function: WithSize },
     "transpose": { Function: Transpose },
+    "sqrt": { Function: Sqrt },
 }

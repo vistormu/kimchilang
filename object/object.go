@@ -22,6 +22,7 @@ const (
     BUILTIN_OBJ
     LIST_OBJ
     MAP_OBJ
+    STRUCT_OBJ
     SLICE_OBJ
     CONTINUE_OBJ
     BREAK_OBJ
@@ -39,6 +40,7 @@ var TypeName = map[int]string{
     BUILTIN_OBJ: "builtin",
     LIST_OBJ: "list",
     MAP_OBJ: "map",
+    STRUCT_OBJ: "struct",
     SLICE_OBJ: "slice",
     CONTINUE_OBJ: "continue",
     BREAK_OBJ: "break",
@@ -217,9 +219,9 @@ func (self *Slice) Inspect() string {
     return out.String()
 }
     
-// ==========
-// HASH TYPES
-// ==========
+// ===========
+// COLLECTIONS
+// ===========
 type MapKey struct {
     Type int
     Value uint64
@@ -244,6 +246,25 @@ func (self *Map) Inspect() string {
 
     out.WriteString("map(")
     out.WriteString(strings.Join(pairs, ", "))
+    out.WriteString(")")
+
+    return out.String()
+}
+
+type Struct struct {
+    Fields map[string]Object
+}
+func (self *Struct) Type() int { return STRUCT_OBJ }
+func (self *Struct) Inspect() string {
+    var out bytes.Buffer
+
+    fields := []string{}
+    for name, value := range self.Fields {
+        fields = append(fields, fmt.Sprintf("%s: %s", name, value.Inspect()))
+    }
+
+    out.WriteString("struct(")
+    out.WriteString(strings.Join(fields, ", "))
     out.WriteString(")")
 
     return out.String()

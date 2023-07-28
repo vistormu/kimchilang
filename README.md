@@ -96,6 +96,12 @@ To create a list with a range of values, a slice can be used:
 let my_list: list(i64) = list(0 to 3) # list(0, 1, 2)
 ```
 
+Also, lists support operations such as in Python:
+```
+let my_list: list(i64) = list(1) + list(2, 3) # list(1, 2, 3)
+let my_list: list(i64) = list(1) * 3 # list(1, 1, 1)
+```
+
 ## Collections
 These objects behave like a container for data.
 

@@ -79,6 +79,7 @@ func New(tokenizer *tokenizer.Tokenizer) *Parser {
     parser.prefixParseFns[token.LPAREN] = parser.parseGroupedExpression
     parser.prefixParseFns[token.IF] = parser.parseIfExpression
     parser.prefixParseFns[token.FN] = parser.parseFunctionLiteral
+    parser.prefixParseFns[token.STRUCT] = parser.parseStructLiteral
     parser.prefixParseFns[token.LIST] = parser.parseListLiteral
     parser.prefixParseFns[token.MAP] = parser.parseMapLiteral
     parser.prefixParseFns[token.WHILE] = parser.parseWhileExpression
@@ -245,7 +246,7 @@ func (self *Parser) parseLetStatement() *ast.LetStatement {
 func (self *Parser) parseLetBeStatement(statement *ast.LetStatement) *ast.LetStatement {
     self.nextToken()
 
-    if !self.peekTokenIs(token.FN) && !self.peekTokenIs(token.LITERAL) { 
+    if !self.peekTokenIs(token.TYPE) && !self.peekTokenIs(token.LITERAL) { 
         self.addPeekError(token.LITERAL)
         return nil
     }
@@ -499,19 +500,8 @@ func (self *Parser) parseCallExpression(function ast.Expression) ast.Expression 
     return expression
 }
 func (self *Parser) parseDotExpression(leftExpression ast.Expression) ast.Expression {
-    if !self.expectPeekTokenToBe(token.IDENTIFIER) { return nil }
-
-    return self.parseMethodExpression(leftExpression)
-    
-    // switch self.peekToken.Subtype {
-    // case token.LPAREN:
-    //     return self.parseMethodExpression(leftExpression)
-    // default:
-        // return self.parseAttributeExpression(leftExpression)
-    // }
-}
-func (self *Parser) parseMethodExpression(leftExpression ast.Expression) ast.Expression {
-    expression := &ast.MethodExpression{Left: leftExpression}
+    expression := &ast.DotExpression{Left: leftExpression, Arguments: []ast.Expression{}}
+    self.nextToken()
     expression.Method = self.parseIdentifier()
 
     if self.peekTokenIs(token.LPAREN) {
@@ -521,11 +511,6 @@ func (self *Parser) parseMethodExpression(leftExpression ast.Expression) ast.Exp
 
     return expression
 }
-// func (self *Parser) parseAttributeExpression(leftExpression ast.Expression) ast.Expression {
-//     expression := &ast.AttributeExpression{Left: leftExpression}
-//     expression.Attribute = self.parseIdentifier()
-//     return expression
-// }
 
 // ========
 // LITERALS
@@ -624,6 +609,14 @@ func (self *Parser) parseMapLiteral() ast.Expression {
     if !self.expectPeekTokenToBe(token.RPAREN) { return nil }
 
     return mapLiteral
+}
+func (self *Parser) parseStructLiteral() ast.Expression {
+    literal := &ast.StructLiteral{Fields: []*ast.Identifier{}}
+
+    if !self.expectPeekTokenToBe(token.LPAREN) { return nil }
+    literal.Fields = self.parseFunctionParameters()
+
+    return literal
 }
 
 

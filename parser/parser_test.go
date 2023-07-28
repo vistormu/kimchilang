@@ -948,9 +948,9 @@ func TestMethodExpression(t *testing.T) {
         t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
     }
 
-    methodExpression, ok := stmt.Expression.(*ast.MethodExpression)
+    methodExpression, ok := stmt.Expression.(*ast.DotExpression)
     if !ok {
-        t.Fatalf("stmt.Expression is not ast.MethodExpression. got=%T", stmt.Expression)
+        t.Fatalf("stmt.Expression is not ast.DotExpression. got=%T", stmt.Expression)
     }
 
     if methodExpression.Left.String() != "x" {
@@ -984,9 +984,9 @@ func TestMethodExpressionWithArguments(t *testing.T) {
         t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
     }
 
-    methodExpression, ok := stmt.Expression.(*ast.MethodExpression)
+    methodExpression, ok := stmt.Expression.(*ast.DotExpression)
     if !ok {
-        t.Fatalf("stmt.Expression is not ast.MethodExpression. got=%T", stmt.Expression)
+        t.Fatalf("stmt.Expression is not ast.DotExpression. got=%T", stmt.Expression)
     }
 
     if methodExpression.Left.String() != "x" {
@@ -1236,6 +1236,42 @@ func TestContinueIfStatement(t *testing.T) {
     if stmt.String() != "continue if true" {
         t.Fatalf("stmt.String() is not 'continue if true'. got=%s", stmt.String())
     }
+}
+
+func TestStructLiteralExpression(t *testing.T) {
+    input := `
+    struct(
+        x: i64,
+        y: bool
+    )
+    `
+    tokenizer := tokenizer.New(input)
+    parser := New(tokenizer)
+    program := parser.ParseProgram()
+    checkParserErrors(t, parser)
+
+    if len(program.Statements) != 1 {
+        t.Fatalf("program.Statements does not contain %d statements. got=%d\n", 1, len(program.Statements))
+    }
+
+    stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
+    if !ok {
+        t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T", program.Statements[0])
+    }
+
+    structLiteral, ok := stmt.Expression.(*ast.StructLiteral)
+    if !ok {
+        t.Fatalf("stmt.Expression is not ast.StructLiteral. got=%T", stmt.Expression)
+    }
+
+    if len(structLiteral.Fields) != 2 {
+        t.Fatalf("structLiteral.Fields does not contain %d fields. got=%d\n", 2, len(structLiteral.Fields))
+    }
+
+    testExpressionValue(t, structLiteral.Fields[0], "x")
+    testExpressionValue(t, structLiteral.Fields[1], "y")
+    testIdentifierType(t, structLiteral.Fields[0], "i64")
+    testIdentifierType(t, structLiteral.Fields[1], "bool")
 }
 
 // =======

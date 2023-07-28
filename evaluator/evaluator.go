@@ -139,7 +139,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
         if len(args) == 1 && isError(args[0]) { return args[0] }
         return applyFunction(function, args)
 
-    case *ast.MethodExpression:
+    case *ast.DotExpression:
         left := Eval(node.Left, env)
         if isError(left) { return left }
 
@@ -153,6 +153,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
     // Collections
     case *ast.MapLiteral:
         return evalMapLiteral(node, env)
+
+    case *ast.StructLiteral:
+        return evalStructLiteral(node, env)
 
     // Loops
     case *ast.WhileExpression:
@@ -269,6 +272,12 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
     }
     if left.Type() == object.BOOL_OBJ && right.Type() == object.BOOL_OBJ {
         return evalBooleanInfixExpression(operator, left, right)
+    }
+    if left.Type() == object.LIST_OBJ && right.Type() == object.LIST_OBJ {
+        return evalListInfixExpression(operator, left, right)
+    }
+    if left.Type() == object.LIST_OBJ && right.Type() == object.I64_OBJ {
+        return evalListInfixExpression(operator, left, right)
     }
     if left.Type() != right.Type() {
         return object.NewError("cannot operate the values: %s %s %s", object.TypeName[left.Type()], operator, object.TypeName[right.Type()])
@@ -417,6 +426,33 @@ func evalBooleanInfixExpression(operator string, left, right object.Object) obje
         return object.NewError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
     }
 }
+func evalListInfixExpression(operator string, left, right object.Object) object.Object {
+    leftVal := left.(*object.List).Elements
+    
+    switch right.Type() {
+    case object.LIST_OBJ:
+        switch operator {
+        case "+":
+            rightVal := right.(*object.List).Elements
+            return &object.List{Elements: append(leftVal, rightVal...)}
+        default:
+            return object.NewError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
+        }
+    case object.I64_OBJ:
+        switch operator {
+        case "*":
+            var result []object.Object
+            for i := 0; i < int(right.(*object.I64).Value); i++ {
+                result = append(result, leftVal...)
+            }
+            return &object.List{Elements: result}
+        default:
+            return object.NewError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
+        }
+    default:
+        return object.NewError("unknown operator: %d %s %d", left.Type(), operator, right.Type())
+    }
+}
 
 // ======
 // ARRAYS
@@ -456,7 +492,9 @@ func evalListSliceExpression(array, index object.Object) object.Object {
         return object.NewError("slice index out of range: %d:%d", slice.Start, slice.End)
     }
 
-    return &object.List{Elements: arrayObject.Elements[slice.Start:slice.End]}
+    elements := arrayObject.Copy().Elements[slice.Start:slice.End]
+
+    return &object.List{Elements: elements}
 }
 func evalStringIndexExpression(str, index object.Object) object.Object {
     strObject := str.(*object.Str)
@@ -554,6 +592,17 @@ func evalMapIndexExpression(mapObj, index object.Object) object.Object {
 
     return pair.Value
 }
+func evalStructLiteral(node *ast.StructLiteral, env *object.Environment) object.Object {
+    fields := make(map[string]object.Object)
+
+    for _, fieldNode := range node.Fields {
+        field := Eval(fieldNode, env)
+        if isError(field) { return field }
+
+    }
+
+    return &object.Struct{Fields: fields}
+}
 
 // =====
 // LOOPS
@@ -568,7 +617,7 @@ func evalWhileExpression(we *ast.WhileExpression, env *object.Environment) objec
 
         if isError(result) { return result }
         if result.Type() == object.RETURN_OBJ { return result }
-        if result.Type() == object.BREAK_OBJ { break }
+        if result.Type() == object.BREAK_OBJ { return object.NONE }
         if result.Type() == object.CONTINUE_OBJ { continue }
 
         condition = Eval(we.Condition, env)

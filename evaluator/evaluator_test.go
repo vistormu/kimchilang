@@ -645,7 +645,45 @@ func TestListMutation(t *testing.T) {
     `
     evaluated := testEval(input)
     testIntegerListObject(t, evaluated, []int64{1, 2, 3})
+
+    input = `
+    let a: list(i64) = list(0 to 10)
+    let b: list(i64) = a(0 to 5) + list(10) + a(6 to 10)
+    a
+    `
+    evaluated = testEval(input)
+    testIntegerListObject(t, evaluated, []int64{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
 }
+
+func TestListOperations(t *testing.T) {
+    tests := []struct {
+        input string
+        expected []int64
+    }{
+        { `let a: list(i64) = list(1, 2, 3) let b: list(i64) = list(4) a+b`, []int64{1, 2, 3, 4} },
+        { `let a: list(i64) = list(1)  a*3`, []int64{1, 1, 1} },
+    }
+
+    for _, tt := range tests {
+        evaluated := testEval(tt.input)
+        testIntegerListObject(t, evaluated, tt.expected)
+    }
+}
+
+// func TestStructs(t *testing.T) {
+//     input := `
+//     let Person be struct(
+//         name: string,
+//         age: i64
+//     )
+
+//     let p be Person("John", 20)
+//     p.name
+//     `
+
+//     evaluated := testEval(input)
+//     testStringObject(t, evaluated, "John")
+// }
 
 // =======
 // HELPERS
