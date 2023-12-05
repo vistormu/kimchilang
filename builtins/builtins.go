@@ -26,4 +26,5 @@ var Builtins = map[string]*object.BuiltIn{
     "with_size": { Function: WithSize },
     "transpose": { Function: Transpose },
     "sqrt": { Function: Sqrt },
+    "strip": { Function: Strip },
 }
